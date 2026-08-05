@@ -1,0 +1,698 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-forest: var(--forest);
+  --color-forest-deep: var(--forest-deep);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-terracotta: var(--terracotta);
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+
+  --shadow-glow: 0 20px 60px -20px color-mix(in oklab, var(--forest-deep) 45%, transparent);
+  --shadow-card: 0 8px 30px -12px color-mix(in oklab, var(--forest-deep) 25%, transparent);
+}
+
+:root {
+  --radius: 0.875rem;
+
+  /* Cream stays LIGHT — used as text color on dark surfaces (text-cream, bg-forest-deep text-cream) */
+  --cream: oklch(0.97 0.025 95);
+  /* Forest tokens stay DARK — used as dark surface (bg-forest-deep, bg-forest) */
+  --forest-deep: oklch(0.14 0.005 60);
+  --forest: oklch(0.20 0.008 60);
+  /* Warmer amber to match crunch mode aesthetic */
+  --gold: oklch(0.82 0.14 65);
+  --gold-soft: oklch(0.88 0.11 75);
+  --terracotta: oklch(0.68 0.17 55);
+
+  --ink: oklch(0.12 0 0);
+
+  /* Dark app surfaces */
+  --background: oklch(0.08 0.003 60);
+  --foreground: var(--cream);
+  --card: oklch(0.14 0.005 60);
+  --card-foreground: var(--cream);
+  --popover: oklch(0.14 0.005 60);
+  --popover-foreground: var(--cream);
+  --primary: var(--gold);
+  --primary-foreground: oklch(0.12 0.005 60);
+  --secondary: oklch(0.20 0.008 60);
+  --secondary-foreground: var(--cream);
+  --muted: oklch(0.18 0.006 60);
+  --muted-foreground: oklch(0.72 0.02 90);
+  --accent: var(--terracotta);
+  --accent-foreground: var(--cream);
+  --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: var(--cream);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--gold);
+}
+
+.dark {
+  --background: oklch(0.08 0.003 60);
+  --foreground: var(--cream);
+}
+
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html { scroll-behavior: auto; }
+  html.lenis, html.lenis body { height: auto; }
+  .lenis.lenis-smooth { scroll-behavior: auto !important; }
+  .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+  .lenis.lenis-stopped { overflow: hidden; }
+  body {
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    background-color: #08080a;
+    background-image:
+      radial-gradient(1200px 800px at 8% 4%, rgba(212,162,76,0.22), transparent 60%),
+      radial-gradient(1000px 700px at 94% 14%, rgba(255,150,80,0.16), transparent 60%),
+      radial-gradient(900px 700px at 78% 88%, rgba(180,110,60,0.18), transparent 62%),
+      radial-gradient(700px 500px at 18% 68%, rgba(120,80,200,0.09), transparent 65%),
+      linear-gradient(180deg, #08080a 0%, #101012 42%, #0a0a0c 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center center;
+    position: relative;
+  }
+  /* Tactile grain overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.28;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size: 220px 220px;
+    background-repeat: repeat;
+  }
+  /* Blueprint dot + line grid overlay */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 1;
+    background-image:
+      radial-gradient(rgba(212,162,76,0.09) 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 22px 22px, 88px 88px, 88px 88px;
+  }
+  body > * { position: relative; z-index: 1; }
+  html.crunch-mode body { background-image: none; background-color: #0d0d0f; }
+  html.crunch-mode body::before { display: none; }
+  html.crunch-mode body::after { display: none; }
+
+
+  h1, h2, h3, h4, .font-display { font-family: var(--font-display); font-feature-settings: "ss01"; letter-spacing: -0.02em; }
+  .font-editorial { font-family: "Instrument Serif", "Fraunces", ui-serif, Georgia, serif; letter-spacing: -0.015em; }
+}
+
+@utility container-x {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  max-width: 84rem;
+  @media (min-width: 768px) { padding-inline: 2rem; }
+}
+
+@utility marquee-track {
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(3deg); }
+}
+
+@utility float-slow { animation: floaty 8s ease-in-out infinite; }
+@utility float-slower { animation: floaty 11s ease-in-out infinite; }
+
+@utility grain {
+  position: relative;
+}
+@utility grain-after {
+  &::after {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 3px 3px;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+}
+
+/* Bouncy Add button */
+@keyframes bouncy {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-4px) scale(1.03); }
+  60% { transform: translateY(0) scale(0.98); }
+}
+@utility animate-bouncy { animation: bouncy 1.8s ease-in-out infinite; }
+
+.add-btn { transition: color .35s ease, border-color .35s ease, transform .2s ease; }
+.add-btn .add-btn-fill {
+  position: absolute; inset: 0;
+  background: var(--forest-deep);
+  transform: translateY(101%);
+  transition: transform .35s cubic-bezier(.65,.05,.36,1);
+  z-index: 0;
+}
+.add-btn:hover .add-btn-fill { transform: translateY(0); }
+.add-btn:hover { color: var(--gold); border-color: var(--forest-deep); animation: none; }
+.add-btn:active { transform: scale(.94); }
+
+/* Cart badge bump */
+@keyframes cart-bump {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.5) rotate(-8deg); }
+  60% { transform: scale(.9); }
+  100% { transform: scale(1); }
+}
+.cart-bump { animation: cart-bump .55s ease-out; }
+
+/* Fade / slide in */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@utility animate-fade-up { animation: fade-up .5s ease-out both; }
+
+@keyframes hue-cycle {
+  0%   { color: #ff6b6b; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(255,107,107,.55), 0 0 60px rgba(255,107,107,.28), 0 10px 34px rgba(0,0,0,.5); }
+  16%  { color: #ffb04d; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(255,176,77,.55), 0 0 60px rgba(255,176,77,.28), 0 10px 34px rgba(0,0,0,.5); }
+  33%  { color: #ffe14d; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(255,225,77,.55), 0 0 60px rgba(255,225,77,.28), 0 10px 34px rgba(0,0,0,.5); }
+  42%  { color: #ffffff; text-shadow: 0 0 0 rgba(255,255,255,.55), 0 0 22px rgba(255,255,255,.45), 0 0 34px rgba(255,255,255,.35), 0 0 70px rgba(255,255,255,.25), 0 10px 34px rgba(0,0,0,.5); }
+  50%  { color: #6bff8a; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(107,255,138,.55), 0 0 60px rgba(107,255,138,.28), 0 10px 34px rgba(0,0,0,.5); }
+  66%  { color: #5ad3ff; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(90,211,255,.55), 0 0 60px rgba(90,211,255,.28), 0 10px 34px rgba(0,0,0,.5); }
+  83%  { color: #b58cff; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(181,140,255,.55), 0 0 60px rgba(181,140,255,.28), 0 10px 34px rgba(0,0,0,.5); }
+  100% { color: #ff6b6b; text-shadow: 0 0 0 rgba(255,255,255,.45), 0 0 18px rgba(255,255,255,.35), 0 0 22px rgba(255,107,107,.55), 0 0 60px rgba(255,107,107,.28), 0 10px 34px rgba(0,0,0,.5); }
+}
+@utility animate-hue-cycle { animation: hue-cycle 8s linear infinite; }
+
+@keyframes letter-wave {
+  0%, 100% { transform: none; }
+}
+@utility animate-letter-wave { animation: none; }
+
+
+
+@keyframes hero-swap {
+  0%   { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@utility animate-hero-swap { animation: hero-swap .35s ease-out both; }
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--muted) 0%, oklch(0.96 0.02 85) 50%, var(--muted) 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 12px;
+}
+
+
+/* Page transition */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);  }
+}
+.page-transition {
+  animation: page-enter .32s ease-out both;
+  background-color: transparent;
+  min-height: 100%;
+  will-change: opacity, transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition { animation: none; }
+}
+
+/* Nav / button micro-transition helper */
+@utility tx { transition: color .25s ease, background-color .25s ease, border-color .25s ease, transform .25s ease, opacity .25s ease, box-shadow .25s ease; }
+
+/* Grid item stagger — apply to children with inline animation-delay */
+@keyframes grid-item-in {
+  from { opacity: 0; transform: translateY(18px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+.grid-stagger > * {
+  animation: grid-item-in .55s cubic-bezier(.22,.61,.36,1) both;
+}
+
+/* Pill filter transition */
+.pill { position: relative; transition: color .3s ease, background-color .35s ease, transform .2s ease; }
+.pill:hover { transform: translateY(-1px); }
+.pill:active { transform: scale(.96); }
+
+/* ============ Wow.js-style scroll reveal ============ */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px) scale(.985);
+  transition:
+    opacity .8s cubic-bezier(.22,.61,.36,1) var(--reveal-delay, 0ms),
+    transform .8s cubic-bezier(.22,.61,.36,1) var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ============ Floating Mode Toggle Button (Glassmorphic) ============ */
+@keyframes mt-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.mode-toggle-btn {
+  animation: mt-float 5s ease-in-out infinite;
+}
+.mode-toggle-btn:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .mode-toggle-btn { animation: none; }
+}
+
+
+/* ============ Cinematic Curtain Transition ============ */
+.curtain-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+}
+.curtain {
+  position: absolute;
+  left: 0; right: 0;
+  height: 52%;
+  overflow: hidden;
+  will-change: transform;
+}
+.curtain-top {
+  top: 0;
+  transform: translateY(-101%) scale(1.04);
+  transform-origin: center top;
+  animation: curtain-top 1.85s cubic-bezier(.78,0,.14,1) forwards;
+}
+.curtain-bottom-wrap { position: absolute; left: 0; right: 0; bottom: 0; height: 52%; }
+.curtain-bottom {
+  bottom: 0;
+  height: 100%;
+  transform: translateY(101%) scale(1.04);
+  transform-origin: center bottom;
+  animation: curtain-bottom 1.85s cubic-bezier(.78,0,.14,1) forwards;
+}
+@keyframes curtain-top {
+  0%   { transform: translateY(-101%) scale(1.04); }
+  32%  { transform: translateY(0) scale(1); }
+  62%  { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-101%) scale(1.04); }
+}
+@keyframes curtain-bottom {
+  0%   { transform: translateY(101%) scale(1.04); }
+  32%  { transform: translateY(0) scale(1); }
+  62%  { transform: translateY(0) scale(1); }
+  100% { transform: translateY(101%) scale(1.04); }
+}
+
+/* Destination themes on the curtain */
+.curtain-stage.to-crunch .curtain {
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(255,122,61,0.32), transparent 55%),
+    radial-gradient(ellipse at 80% 75%, rgba(255,209,102,0.24), transparent 55%),
+    linear-gradient(180deg, #0a0a0c 0%, #141216 100%);
+}
+.curtain-stage.to-cozy .curtain {
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(212,163,80,0.20), transparent 55%),
+    radial-gradient(ellipse at 80% 75%, rgba(30,30,30,0.10), transparent 55%),
+    linear-gradient(180deg, #f5ecd6 0%, #eadfc4 100%);
+}
+
+.curtain-grain {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 3px 3px;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.curtain-stage.to-cozy .curtain-grain {
+  background-image: radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+}
+
+
+/* Center kinetic type */
+.curtain-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  opacity: 0;
+  animation: curtain-center 1.85s cubic-bezier(.78,0,.14,1) forwards;
+}
+@keyframes curtain-center {
+  0%, 28% { opacity: 0; transform: scale(.98); }
+  38%, 60% { opacity: 1; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.02); }
+}
+.curtain-eyebrow {
+  display: inline-flex; align-items: center; gap: 14px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: eyebrow-in .55s cubic-bezier(.22,.61,.36,1) .42s forwards;
+}
+@keyframes eyebrow-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+.curtain-stage.to-crunch .curtain-eyebrow { color: #ffb26b; }
+.curtain-stage.to-cozy   .curtain-eyebrow { color: var(--forest-deep); }
+
+.curtain-word {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(64px, 18vw, 240px);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  display: flex;
+  gap: 0.02em;
+}
+.curtain-word span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(55%) rotate(5deg);
+  filter: blur(6px);
+  animation: letter-in .65s cubic-bezier(.22,.61,.36,1) forwards;
+}
+@keyframes letter-in {
+  to { opacity: 1; transform: translateY(0) rotate(0); filter: blur(0); }
+}
+.curtain-stage.to-crunch .curtain-word {
+  color: #fdf6e6;
+  text-shadow: 0 0 50px rgba(255,178,107,0.28);
+}
+.curtain-stage.to-crunch .curtain-word span:nth-child(odd) { color: #ffb26b; }
+.curtain-stage.to-cozy .curtain-word { color: var(--forest-deep); }
+.curtain-stage.to-cozy .curtain-word span:nth-child(odd) { color: var(--gold); }
+
+.curtain-sub {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(14px, 1.6vw, 20px);
+  opacity: 0;
+  transform: translateY(8px);
+  animation: sub-in .55s cubic-bezier(.22,.61,.36,1) .58s forwards;
+}
+@keyframes sub-in {
+  to { opacity: .7; transform: translateY(0); }
+}
+.curtain-stage.to-crunch .curtain-sub { color: #fdf6e6; }
+.curtain-stage.to-cozy   .curtain-sub { color: var(--forest-deep); }
+
+@media (prefers-reduced-motion: reduce) {
+  .curtain-top, .curtain-bottom { animation-duration: .3s; }
+  .curtain-word span { animation-duration: .01s; }
+}
+
+
+/* ============ Crunch Mode Theme (opposite palette) ============ */
+.crunch-scope {
+  background: #0d0d0f;
+  color: #fdf6e6;
+}
+html.crunch-mode {
+  background: #0d0d0f;
+}
+html.crunch-mode body {
+  background: #0d0d0f;
+  color: #fdf6e6;
+}
+html.crunch-mode .page-transition {
+  background: #0d0d0f;
+}
+/* Invert header/footer while in crunch mode */
+html.crunch-mode header,
+html.crunch-mode footer {
+  background: #131316 !important;
+  color: #fdf6e6;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+html.crunch-mode header a,
+html.crunch-mode footer a,
+html.crunch-mode header button {
+  color: #fdf6e6;
+}
+html.crunch-mode header a:hover { color: #ffb26b; }
+
+
+/* ============ Fruit Loader ============ */
+.fruit-loader {
+  position: relative;
+  width: 92px;
+  height: 92px;
+}
+.fruit-loader-ring {
+  position: absolute;
+  inset: 0;
+  animation: fruit-spin 4.5s linear infinite;
+}
+.fruit-loader-item {
+  position: absolute;
+  left: 50%; top: 50%;
+  font-size: 22px;
+  transform:
+    translate(-50%, -50%)
+    rotate(calc(var(--i) * (360deg / var(--n))))
+    translateY(-38px);
+  animation: fruit-bob 1.8s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.12s);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+}
+.fruit-loader-core {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 14px; height: 14px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, var(--gold), color-mix(in oklab, var(--forest-deep) 60%, var(--gold)));
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 30px color-mix(in oklab, var(--gold) 55%, transparent);
+  animation: fruit-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fruit-spin { to { transform: rotate(360deg); } }
+@keyframes fruit-bob {
+  0%, 100% { font-size: 20px; }
+  50%      { font-size: 26px; }
+}
+@keyframes fruit-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: .9; }
+  50%      { transform: translate(-50%, -50%) scale(1.35); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fruit-loader-ring, .fruit-loader-item, .fruit-loader-core { animation: none; }
+}
+
+
+/* ============ Dark theme utility remapping =============
+   Because the site inherits a light-era class vocabulary (text-forest-deep for
+   headings, bg-cream for surfaces, text-ink for card body), remap those onto a
+   dark palette so the whole app matches the Crunch/Coming-Soon aesthetic. */
+
+.text-forest-deep,
+.hover\:text-forest-deep:hover,
+.group:hover .group-hover\:text-forest-deep { color: var(--cream); }
+.text-forest,
+.hover\:text-forest:hover { color: var(--gold); }
+.text-ink { color: var(--cream); }
+.text-ink\/70 { color: color-mix(in oklab, var(--cream) 70%, transparent); }
+.text-ink\/60 { color: color-mix(in oklab, var(--cream) 60%, transparent); }
+.focus\:border-forest-deep:focus,
+.focus\:ring-forest-deep:focus { border-color: var(--gold); }
+
+/* Opaque cream surfaces (islands like header, filter bar, inputs, floating hero cards)
+   become dark cards on the dark app. Translucent variants (bg-cream/10, /85, etc.)
+   remain useful as light-tint overlays on already-dark parents and are left alone. */
+.bg-cream { background-color: #131316; color: var(--cream); }
+.hover\:bg-cream:hover { background-color: #1a1a1e; color: var(--cream); }
+.bg-cream\/85 { background-color: color-mix(in srgb, #131316 88%, transparent); color: var(--cream); }
+.bg-cream\/95 { background-color: color-mix(in srgb, #131316 95%, transparent); color: var(--cream); }
+
+/* Keep contrast on amber CTAs: dark text on gold */
+.bg-gold.text-forest-deep,
+.bg-gold .text-forest-deep,
+.bg-gold\/90.text-forest-deep,
+.hover\:bg-gold:hover.text-forest-deep { color: #14100a; }
+
+/* Gold CTAs used `hover:bg-cream`, which the dark remap turned near-black on
+   near-black text (button looked like it vanished). Hover to a lighter gold. */
+.bg-gold.hover\:bg-cream:hover,
+.bg-gold\/90.hover\:bg-cream:hover {
+  background-color: var(--gold-soft);
+  color: #14100a;
+}
+.bg-gold.hover\:bg-cream:hover * { color: #14100a; }
+
+
+/* ============ Restore original palette inside Crunch / Coming Soon =============
+   The crunch page and any crunch-scoped surface should keep its native look. */
+html.crunch-mode,
+.crunch-scope {
+  --cream: oklch(0.97 0.025 95);
+  --forest-deep: oklch(0.12 0 0);
+  --forest: oklch(0.18 0 0);
+  --gold: oklch(0.82 0.14 88);
+  --ink: oklch(0.12 0 0);
+}
+html.crunch-mode .text-forest-deep,
+.crunch-scope .text-forest-deep { color: oklch(0.12 0 0); }
+html.crunch-mode .text-forest,
+.crunch-scope .text-forest { color: oklch(0.18 0 0); }
+html.crunch-mode .text-ink,
+.crunch-scope .text-ink { color: oklch(0.12 0 0); }
+html.crunch-mode .bg-cream,
+.crunch-scope .bg-cream { background-color: oklch(0.97 0.025 95); color: oklch(0.12 0 0); }
+
+/* Skeleton shimmer needs a dark base now */
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 800px 100%;
+}
+
+/* Dark-theme extras */
+.border-forest-deep,
+.hover\:border-forest-deep:hover,
+.border-2.border-forest-deep { border-color: var(--gold); }
+.add-btn { color: var(--cream); border-color: var(--gold) !important; }
+.add-btn .add-btn-fill { background: var(--gold); }
+.add-btn:hover { color: var(--forest-deep); border-color: var(--gold) !important; }
+
+/* Product cards: subtle light border on dark instead of black */
+.border-black\/5 { border-color: rgba(255,255,255,0.08); }
+
+/* Announcement bar contrast: bg-forest-deep is now the same dark as body — lift with tint */
+header .bg-forest-deep,
+.bg-forest-deep:not(.no-tint) { }
+
+/* Filter pills on dark: bg-muted needs a bit more contrast when text is cream */
+
+/* Chat panel entrance */
+@keyframes chat-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Hero collage — wavy drift + glow pulse */
+@keyframes collage-wave {
+  0%   { transform: translate3d(0,0,0) rotate(-1.2deg) scale(1); }
+  25%  { transform: translate3d(10px,-14px,0) rotate(0.6deg) scale(1.02); }
+  50%  { transform: translate3d(-6px,-22px,0) rotate(1.4deg) scale(1.035); }
+  75%  { transform: translate3d(-12px,-9px,0) rotate(0.2deg) scale(1.015); }
+  100% { transform: translate3d(0,0,0) rotate(-1.2deg) scale(1); }
+}
+@utility animate-collage-wave { animation: collage-wave 14s cubic-bezier(.45,.05,.55,.95) infinite; will-change: transform; }
+
+@keyframes collage-glow {
+  0%,100% { opacity: .35; transform: scale(1); }
+  50%     { opacity: .75; transform: scale(1.12); }
+}
+@utility animate-collage-glow { animation: collage-glow 7s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-collage-wave, .animate-collage-glow { animation: none; }
+}
+
+/* Site chrome (announcement bar + header) hides during the cinematic intro */
+.site-chrome.is-hidden,
+html.intro-active .site-chrome {
+  transform: translateY(-130%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The hidden chrome still holds its space in flow; the intro paints a fixed
+   backdrop behind everything, so the page background just needs to match its
+   darkest stop instead of showing the warm paper texture. */
+html.intro-active body {
+  background-image: none;
+  background-color: #050b08;
+}
+
+html.intro-active body::before,
+html.intro-active body::after {
+  display: none;
+}
+
+
