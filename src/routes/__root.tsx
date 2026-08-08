@@ -15,7 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { CartProvider } from "@/lib/cart-store";
-import { AuthProvider } from "@/lib/auth-store";
+// import { AuthProvider } from "@/lib/auth-store";
 import { WishlistProvider } from "@/lib/wishlist-store";
 
 import { SiteProvider } from "@/lib/site-store";
@@ -128,7 +128,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SiteProvider>
-        <AuthProvider>
+        
           <WishlistProvider>
             <CartProvider>
               <div className="min-h-screen flex flex-col">
@@ -145,7 +145,7 @@ function RootComponent() {
               <Toaster position="top-center" richColors />
             </CartProvider>
           </WishlistProvider>
-        </AuthProvider>
+        
       </SiteProvider>
 
     </QueryClientProvider>

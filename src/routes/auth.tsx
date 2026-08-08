@@ -2,20 +2,37 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Mail, Lock, User, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import lifestyle from "@/assets/lifestyle-1.jpg";
-import { useAuth, takePendingAction } from "@/lib/auth-store";
+import { useAuth } from "@/lib/auth-store";
 import { useCart } from "@/lib/cart-store";
 import { useWishlist } from "@/lib/wishlist-store";
 import { isPasswordValid } from "@/lib/password";
 import { PasswordChecklist } from "@/components/site/PasswordChecklist";
 
+// Replace with your Google Client ID
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+// 1. We wrap the page here so the Google hook has context, without touching __root.tsx
+function AuthWrapper() {
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <Auth />
+    </GoogleOAuthProvider>
+  );
+}
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
-  head: () => ({ meta: [{ title: "Sign in — Grams" }, { name: "description", content: "Sign in or create your Grams account." }] }),
-  component: Auth,
+  head: () => ({
+    meta: [
+      { title: "Sign in — Grams" },
+      { name: "description", content: "Sign in or create your Grams account." },
+    ],
+  }),
+  component: AuthWrapper,
 });
 
 function Auth() {
@@ -23,45 +40,64 @@ function Auth() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { user, signIn, signUp, signInWithGoogle, signOut } = useAuth();
+  
+  // 2. We use the new backend methods from your Zustand store
+  const { user, loginWithEmail, signupWithEmail, loginWithGoogle, logout, pendingAction, clearPendingAction } = useAuth();
+  
   const { addDirect: addCart } = useCart();
   const { addDirect } = useWishlist();
   const navigate = useNavigate();
   const search = Route.useSearch();
 
   const finish = () => {
-    const pending = takePendingAction();
+    const pending = pendingAction;
     if (pending?.type === "cart") {
-      addCart(pending.item);
-      toast.success(`${pending.item.name} added to your cart`);
+      addCart(pending.item as any);
+      toast.success(`${(pending.item as any).name} added to your cart`);
     } else if (pending?.type === "wishlist") {
-      addDirect(pending.slug);
+      addDirect(pending.slug as string);
       toast.success("Saved to your wishlist");
     }
+    clearPendingAction();
     const to = search.redirect && search.redirect.startsWith("/") ? search.redirect : "/profile";
     navigate({ to, replace: true });
   };
 
-  const handleEmail = (e: React.FormEvent) => {
+  const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const mail = email.trim();
+    
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return toast.error("Enter a valid email address");
     if (mode === "signup" && !isPasswordValid(password))
       return toast.error("Password needs 6+ characters, a number and a special character");
     if (mode === "signin" && password.length < 6) return toast.error("Password must be at least 6 characters");
     if (mode === "signup" && name.trim().length < 2) return toast.error("Enter your full name");
-    if (mode === "signup") signUp(name, mail, password);
-    else signIn(mail, password);
-    toast.success(mode === "signin" ? "Welcome back!" : "Account created");
-    setTimeout(finish, 0);
+
+    // 3. Connect to Django endpoints
+    let success = false;
+    if (mode === "signup") {
+      success = await signupWithEmail(mail, password, name); // Added 'name' here!
+    } else {
+      success = await loginWithEmail(mail, password);
+    }
+
+    if (success) {
+      toast.success(mode === "signin" ? "Welcome back!" : "Account created");
+      setTimeout(finish, 0);
+    }
   };
 
-
-  const handleGoogle = () => {
-    signInWithGoogle();
-    toast.success("Signed in with Google");
-    setTimeout(finish, 0);
-  };
+  // 4. Safely trigger Google Auth
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      const success = await loginWithGoogle(tokenResponse.access_token);
+      if (success) {
+        toast.success("Signed in with Google");
+        setTimeout(finish, 0);
+      }
+    },
+    onError: () => toast.error("Google sign in failed"),
+  });
 
   return (
     <div className="min-h-[80vh] container-x py-12 grid lg:grid-cols-2 gap-10 items-center">
@@ -70,7 +106,9 @@ function Auth() {
         <div className="absolute inset-0 bg-gradient-to-t from-forest-deep/90 to-forest-deep/20" />
         <div className="absolute bottom-8 left-8 right-8 text-cream">
           <p className="text-xs tracking-[0.3em] uppercase text-gold">Welcome back</p>
-          <h2 className="mt-3 font-display text-5xl leading-none">Snacks<br /><span className="italic">await.</span></h2>
+          <h2 className="mt-3 font-display text-5xl leading-none">
+            Snacks<br /><span className="italic">await.</span>
+          </h2>
         </div>
       </div>
 
@@ -78,14 +116,16 @@ function Auth() {
         {user ? (
           <div className="text-center py-6">
             <p className="text-xs tracking-[0.3em] uppercase text-gold">Signed in</p>
-            <h1 className="mt-3 font-display italic text-4xl text-cream">Hey, {user.name.split(" ")[0]}.</h1>
+            <h1 className="mt-3 font-display italic text-4xl text-cream">
+              Hey, {user.first_name || user.email.split("@")[0]}.
+            </h1>
             <p className="text-cream/60 mt-2 text-sm">{user.email}</p>
             <div className="mt-8 space-y-2.5">
               <Link to="/profile" className="block w-full rounded-full bg-gold text-forest-deep py-3.5 text-sm font-semibold hover:bg-gold-soft transition">
                 Go to my account
               </Link>
               <button
-                onClick={() => { signOut(); toast("Signed out"); }}
+                onClick={() => { logout(); toast("Signed out"); }}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-white/15 py-3.5 text-sm font-semibold text-cream hover:bg-white/[0.08] transition"
               >
                 <LogOut className="w-4 h-4" /> Sign out
@@ -115,8 +155,9 @@ function Auth() {
 
             <div className="mt-6">
               <button
-                onClick={handleGoogle}
-                className="w-full inline-flex items-center justify-center gap-3 rounded-full bg-cream text-forest-deep py-3.5 text-sm font-semibold hover:bg-white transition"
+                type="button"
+                onClick={() => googleLogin()}
+                className="w-full inline-flex items-center justify-center gap-3 rounded-full border border-white/15 bg-white/[0.02] py-3.5 text-sm font-semibold text-cream hover:bg-white/[0.08] active:scale-[0.98] transition-all duration-200"
               >
                 <GoogleIcon /> Continue with Google
               </button>
@@ -145,7 +186,6 @@ function Auth() {
               <button type="submit" className="w-full rounded-full bg-gold text-forest-deep py-3.5 text-sm font-semibold hover:bg-gold-soft transition">
                 {mode === "signin" ? "Sign in" : "Register"}
               </button>
-
             </form>
 
             <p className="mt-6 text-center text-xs text-cream/50">
@@ -170,10 +210,10 @@ function IconField({ icon: Icon, ...rest }: { icon: React.ComponentType<{ classN
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 48 48" className="w-4 h-4" aria-hidden>
-      <path fill="#EA4335" d="M24 9.5c3.2 0 6 .9 8.3 2.6l6.2-6.2C34.4 2.3 29.6 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.2 5.6C11.5 13.1 17.3 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.5 24.6c0-1.5-.1-2.9-.4-4.3H24v8.2h12.7c-.6 3-2.3 5.5-4.9 7.2l7.5 5.8c4.4-4 7.2-10 7.2-16.9z"/>
-      <path fill="#FBBC05" d="M9.8 28.6c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.2-5.6C1 16.8 0 20.3 0 24s1 7.2 2.6 10.4l7.2-5.8z"/>
-      <path fill="#34A853" d="M24 48c6.5 0 12-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.7 0-12.5-3.6-14.6-9.4l-7.2 5.6C6.5 42.6 14.6 48 24 48z"/>
+      <path fill="#EA4335" d="M24 9.5c3.2 0 6 .9 8.3 2.6l6.2-6.2C34.4 2.3 29.6 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.2 5.6C11.5 13.1 17.3 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.5 24.6c0-1.5-.1-2.9-.4-4.3H24v8.2h12.7c-.6 3-2.3 5.5-4.9 7.2l7.5 5.8c4.4-4 7.2-10 7.2-16.9z" />
+      <path fill="#FBBC05" d="M9.8 28.6c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.2-5.6C1 16.8 0 20.3 0 24s1 7.2 2.6 10.4l7.2-5.8z" />
+      <path fill="#34A853" d="M24 48c6.5 0 12-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.7 0-12.5-3.6-14.6-9.4l-7.2 5.6C6.5 42.6 14.6 48 24 48z" />
     </svg>
   );
 }

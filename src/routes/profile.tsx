@@ -7,12 +7,10 @@ import { useSite } from "@/lib/site-store";
 import { useAuth } from "@/lib/auth-store";
 import { useWishlist } from "@/lib/wishlist-store";
 
-
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "My Account — Grams" }, { name: "description", content: "Manage your Grams account, orders, addresses and preferences." }] }),
   component: Profile,
 });
-
 
 type Tab = "overview" | "orders" | "addresses" | "wishlist" | "settings";
 
@@ -35,12 +33,15 @@ function Profile() {
 
   if (!user) return <div className="container-x py-24 text-center text-muted-foreground">Redirecting to sign in…</div>;
 
+  // Safe display name helper for Django user records
+  const displayName = user?.first_name || user?.username || user?.email?.split('@')[0] || 'there';
+
   return (
     <div className="container-x py-12">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs tracking-[0.3em] uppercase text-gold">My Account</p>
-          <h1 className="mt-2 font-display text-5xl md:text-6xl text-forest-deep">Hey, {user.name.split(" ")[0]} 👋</h1>
+          <h1 className="mt-2 font-display text-5xl md:text-6xl text-forest-deep">Hey, {displayName} 👋</h1>
           <p className="mt-2 text-muted-foreground">{user.email} · Silver Snacker</p>
         </div>
         <button
@@ -50,7 +51,6 @@ function Profile() {
           <LogOut className="w-4 h-4" /> Sign out
         </button>
       </div>
-
 
       <div className="mt-10 grid lg:grid-cols-[260px_1fr] gap-8">
         <aside className="rounded-2xl bg-card border border-border p-2 h-fit">
@@ -223,7 +223,6 @@ function Orders() {
   );
 }
 
-
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { icon: React.ComponentType<{ className?: string }>; cls: string }> = {
     Delivered: { icon: Check, cls: "bg-forest-deep text-gold" },
@@ -299,7 +298,6 @@ function Wishlist() {
     </div>
   );
 }
-
 
 function SettingsPanel() {
   return (
