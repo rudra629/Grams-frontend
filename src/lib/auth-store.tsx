@@ -69,13 +69,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setPendingAction: (action) => set({ pendingAction: action }),
   clearPendingAction: () => set({ pendingAction: null }),
 
-  loginWithEmail: async (email, password) => {
+loginWithEmail: async (email, password) => {
     set({ isLoading: true, error: null });
+    
+    // 1. Force lowercase and remove accidental spaces
+    const cleanEmail = email.toLowerCase().trim(); 
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ 
+          username: cleanEmail, // Safely satisfies the base serializer
+          email: cleanEmail,    // Satisfies allauth
+          password: password 
+        }),
       });
 
       const data = await response.json();

@@ -1,62 +1,75 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Star, Minus, Plus, ShieldCheck, Truck, Leaf, Heart, Share2, Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { getProduct, products, type Product, type ProductSlide } from "@/lib/products";
+import { type Product, type ProductSlide } from "@/lib/products";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useCart, MAX_PER_ITEM } from "@/lib/cart-store";
 import { useWishlist } from "@/lib/wishlist-store";
-
 import { flyToCart } from "@/lib/fly-to-cart";
+import { useSite } from "@/lib/site-store"; 
 
 export const Route = createFileRoute("/product/$slug")({
   loader: ({ params }) => {
-    const p = getProduct(params.slug);
-    if (p) return { product: p };
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("grams:extra-products");
-        if (raw) {
-          const list = JSON.parse(raw) as Product[];
-          const found = list.find((x) => x.slug === params.slug);
-          if (found) return { product: found };
-        }
-      } catch {}
-    }
-    throw notFound();
+    // 1. Only pass the slug forward. We no longer fetch dummy data here!
+    return { slug: params.slug };
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.product.name} — Grams` },
-          { name: "description", content: loaderData.product.tagline },
-          { property: "og:title", content: `${loaderData.product.name} — Grams` },
-          { property: "og:description", content: loaderData.product.tagline },
-          { property: "og:image", content: loaderData.product.image },
-          { name: "twitter:image", content: loaderData.product.image },
-        ]
-      : [{ title: "Product not found" }, { name: "robots", content: "noindex" }],
+  head: () => ({
+    meta: [
+      { title: "Product Details — Grams" },
+    ],
   }),
-  notFoundComponent: () => (
-    <div className="container-x py-32 text-center">
-      <h1 className="font-display text-5xl text-forest-deep">Product not found</h1>
-      <Link to="/shop" className="mt-6 inline-block underline">Back to shop</Link>
-    </div>
-  ),
   component: ProductPage,
 });
 
+// 2. The Wrapper Component: Handles the loading state and 404s gracefully
 function ProductPage() {
-  const { product } = Route.useLoaderData() as { product: Product };
+  const { slug } = Route.useLoaderData();
+  const { allProducts } = useSite(); // This pulls ONLY the live database products!
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Tell React we are fully loaded on the client side
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  // Check ONLY custom database products
+  const product = allProducts.find((p) => p.slug === slug);
+
+  // Hydration delay check to prevent the flash of the 404 screen
+  if (!product) {
+    if (!isHydrated) {
+      return (
+        <div className="container-x py-32 text-center min-h-[60vh] grid place-items-center">
+          <div className="animate-pulse text-muted-foreground">Loading product details...</div>
+        </div>
+      );
+    }
+    return (
+      <div className="container-x py-32 text-center min-h-[60vh] grid place-items-center content-center">
+        <div>
+          <h1 className="font-display text-5xl text-forest-deep">Product not found</h1>
+          <Link to="/shop" className="mt-6 inline-block underline hover:text-gold transition">Back to shop</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. If product is found, render the actual details
+  return <ProductDetailView product={product} />;
+}
+
+// 4. The View Component: Extracted so React Hooks operate safely
+function ProductDetailView({ product }: { product: Product }) {
   const [weight, setWeight] = useState(product.weights[0]);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const { add } = useCart();
   const wishlist = useWishlist();
+  const { allProducts } = useSite(); // Grab all live products to populate related items
 
   const heroImgRef = useRef<HTMLImageElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
 
-  // Build slideshow: admin-defined slides, or fall back to a single slide from the product itself.
   const slides: ProductSlide[] = useMemo(() => {
     if (product.slides && product.slides.length > 0) return product.slides;
     return [{ image: product.image, title: product.name, description: product.tagline }];
@@ -76,7 +89,9 @@ function ProductPage() {
   }, [slides.length, paused]);
 
   const current = slides[slideIdx] ?? slides[0];
-  const related = products.filter((p) => p.category === product.category && p.slug !== product.slug).slice(0, 4);
+  
+  // ✅ Now strictly filters from your LIVE database items only!
+  const related = allProducts.filter((p) => p.category === product.category && p.slug !== product.slug).slice(0, 4);
 
   const scrollToDetails = () => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -86,13 +101,11 @@ function ProductPage() {
         <Link to="/" className="hover:text-forest-deep">Home</Link> / <Link to="/shop" className="hover:text-forest-deep">Shop</Link> / <span className="text-forest-deep">{product.name}</span>
       </div>
 
-      {/* FULL-SCREEN HERO — image left, title/description/origin right */}
       <section
         className="container-x pb-6 min-h-[calc(100vh-8rem)] grid lg:grid-cols-2 gap-8 lg:gap-14 items-center"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        {/* Image */}
         <div className="relative rounded-3xl bg-gradient-to-br from-muted to-card border border-border/60 p-6 md:p-12 grid place-items-center min-h-[420px] lg:min-h-[calc(100vh-12rem)] overflow-hidden">
           <div className="absolute top-6 left-6 flex flex-col gap-2 z-10">
             {product.bestseller && <span className="text-[10px] tracking-[0.18em] uppercase font-semibold bg-forest-deep text-gold px-2.5 py-1 rounded-full">Bestseller</span>}
@@ -126,7 +139,6 @@ function ProductPage() {
           )}
         </div>
 
-        {/* Copy */}
         <div className="flex flex-col justify-center">
           <p className="text-xs tracking-[0.3em] uppercase text-gold">{product.category}</p>
 
@@ -169,7 +181,6 @@ function ProductPage() {
         </div>
       </section>
 
-      {/* DETAILS (below fold) */}
       <section ref={detailsRef} className="container-x py-14 border-t border-border/40">
         <div className="grid lg:grid-cols-2 gap-12">
           <div>
@@ -254,10 +265,9 @@ function ProductPage() {
 
           <div>
             <h2 className="font-display text-3xl text-foreground">The Story</h2>
-            <p className="mt-4 text-muted-foreground leading-relaxed">{product.description}</p>
-            <p className="mt-4 text-muted-foreground leading-relaxed">
-              We source directly from growers in {product.origin}, cutting the layers of middlemen so you get freshness without the markup. Each batch is small-lot roasted (where applicable), nitrogen-flushed, and vacuum-sealed within hours.
-            </p>
+            <div className="mt-4 text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {product.description}
+            </div>
 
             <h2 className="mt-10 font-display text-3xl text-foreground">Nutrition</h2>
             <div className="mt-4 rounded-2xl border border-border overflow-hidden">
@@ -273,16 +283,18 @@ function ProductPage() {
         </div>
       </section>
 
-      {/* Related */}
-      <section className="container-x py-12">
-        <div className="flex items-end justify-between mb-8">
-          <h2 className="font-display text-4xl text-foreground">You might also love</h2>
-          <Link to="/shop" className="text-sm font-semibold hover:text-terracotta">View all</Link>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {related.map((p) => <ProductCard key={p.slug} product={p} />)}
-        </div>
-      </section>
+      {/* ✅ 'You might also love' Section using REAL database items! */}
+      {related.length > 0 && (
+        <section className="container-x py-12">
+          <div className="flex items-end justify-between mb-8">
+            <h2 className="font-display text-4xl text-foreground">You might also love</h2>
+            <Link to="/shop" className="text-sm font-semibold hover:text-terracotta">View all</Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {related.map((p) => <ProductCard key={p.slug} product={p} />)}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

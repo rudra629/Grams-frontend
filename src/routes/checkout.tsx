@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MapPin, Plus, CreditCard, Wallet, Truck, Check, ArrowRight, Loader2 } from "lucide-react";
 import { useCart } from "@/lib/cart-store";
 import { useSite, type Address } from "@/lib/site-store";
+import { useAuth } from "@/lib/auth-store";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — Grams" }, { name: "robots", content: "noindex" }] }),
@@ -21,7 +22,7 @@ function Checkout() {
 
   const shipping = total > 899 ? 0 : 49;
   const grand = total + shipping;
-
+  const { token } = useAuth();
   const saveAddress = () => {
     if (!form.name || !form.phone || !form.line1 || !form.city || !form.pincode) return;
     const a = addAddress(form);
@@ -30,24 +31,38 @@ function Checkout() {
     setForm({ name: "", phone: "", line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   };
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (!selected || items.length === 0) return;
     setProcessing(true);
-    setTimeout(() => {
-      const id = `GRM-${Math.floor(10000 + Math.random() * 89999)}`;
-      const addr = addresses.find((a) => a.id === selected);
-      addOrder({
-        id,
-        customer: addr?.name ?? "Guest",
-        email: "you@grams.snack",
-        total: grand,
-        status: "Processing",
-        date: new Date().toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
-        items: items.map((i) => ({ name: i.name, qty: i.qty, weight: i.weight, price: i.price })),
+    
+    try {
+      // 1. Send the real total to your Django backend
+      const response = await fetch("http://127.0.0.1:8000/api/orders/create/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // Securely identify the buyer
+        },
+        body: JSON.stringify({ 
+          total: grand // Sends the final price to Django
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Backend rejected the order");
+      }
+
+      const data = await response.json();
+
+      // 2. Clear the cart and navigate to the success page with the real Django order ID
       clear();
-      navigate({ to: "/order-success", search: { id } });
-    }, 1400);
+      navigate({ to: "/order-success", search: { id: data.order_id } });
+
+    } catch (error) {
+      console.error(error);
+      setProcessing(false);
+      alert("Payment failed. Please check your backend terminal.");
+    }
   };
 
   if (items.length === 0 && !processing) {

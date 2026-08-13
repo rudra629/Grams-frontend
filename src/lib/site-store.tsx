@@ -450,8 +450,8 @@ export function SiteProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated) localStorage.setItem("grams:contact", JSON.stringify(contact)); }, [contact, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("grams:copy", JSON.stringify(copy)); }, [copy, hydrated]);
 
-
-  const allProducts = useMemo(() => [...extraProducts, ...baseProducts], [extraProducts]);
+  // THIS is the line that fixes everything globally!
+  const allProducts = useMemo(() => [...extraProducts], [extraProducts]);
 
   const value: SiteCtx = {
     extraProducts,
@@ -517,7 +517,6 @@ export function SiteProvider({ children }: { children: ReactNode }) {
     setCopy: setCopyState,
     t: (key) => copy[key] ?? DEFAULT_COPY[key] ?? "",
   };
-
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

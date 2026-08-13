@@ -34,6 +34,7 @@ function Shop() {
   const [maxPrice, setMaxPrice] = useState(1500);
   const [loading, setLoading] = useState(true);
   const [scrolled, setScrolled] = useState(false);
+  
   useEffect(() => { const t = setTimeout(() => setLoading(false), 350); return () => clearTimeout(t); }, []);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -52,7 +53,6 @@ function Shop() {
     if (sort === "Rating") list.sort((a, b) => b.rating - a.rating);
     return list;
   }, [q, cat, sort, maxPrice, allProducts]);
-
 
   return (
     <div>
@@ -74,7 +74,6 @@ function Shop() {
           <p className="text-xs tracking-[0.3em] uppercase text-gold">{t("shop.eyebrow")}</p>
           <h1 className="mt-3 font-display text-5xl md:text-7xl">{t("shop.title")}</h1>
           <p className="mt-4 max-w-xl text-cream/70">{t("shop.subtitle")}</p>
-
 
           <div className="mt-10 flex items-center gap-3 bg-cream/10 backdrop-blur border border-cream/20 rounded-full px-5 py-1 max-w-2xl">
             <Search className="w-5 h-5 text-gold" />
@@ -149,7 +148,7 @@ function Shop() {
             <h3 className="font-display text-3xl md:text-4xl">Can't decide?</h3>
             <p className="mt-2 text-cream/70">Grab our curated Signature Trio — one from each category, hand-picked by us.</p>
           </div>
-          <Link to="/product/$slug" params={{ slug: allProducts[0]?.slug ?? "walnut-whole-california" }} className="rounded-full bg-gold text-forest-deep px-7 py-4 text-sm font-semibold hover:bg-cream transition">
+          <Link to="/product/$slug" params={{ slug: allProducts[0]?.slug ?? "" }} className="rounded-full bg-gold text-forest-deep px-7 py-4 text-sm font-semibold hover:bg-cream transition">
             Explore Signature
           </Link>
         </div>

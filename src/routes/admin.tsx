@@ -5,9 +5,10 @@ import {
   ArrowUpRight, ArrowDownRight, Boxes, ShoppingCart, BarChart3, Trash2, Settings2, Megaphone, X, Briefcase, FileText, Download, Gift, Star, EyeOff, Eye, Type, TicketPercent, Power,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products as baseProducts, type Product } from "@/lib/products";
 import { useSite, COPY_FIELDS, VALUE_PROP_ICONS, type Order, type GiftCategory, type SiteStat, type MonthPick, type ContactInfo, type Coupon, type ValueProp, type ValuePropIcon } from "@/lib/site-store";
 import { AdminAuthGate } from "@/components/site/AdminAuthGate";
+import { useAuth } from "@/lib/auth-store";
+import type { Product } from "@/lib/products";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — Grams" }, { name: "robots", content: "noindex" }] }),
@@ -24,6 +25,7 @@ type Section = "dashboard" | "products" | "add" | "orders" | "customers" | "care
 
 function Admin() {
   const [section, setSection] = useState<Section>("dashboard");
+  const { logout } = useAuth();
 
   return (
     <div className="bg-muted/40 min-h-screen">
@@ -33,11 +35,17 @@ function Admin() {
             <p className="text-xs tracking-[0.3em] uppercase text-gold">Grams · Admin</p>
             <h1 className="truncate font-display text-3xl md:text-5xl text-forest-deep">Command Center</h1>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="hidden md:flex items-center gap-2 rounded-full bg-card border border-border px-4 py-2">
               <Search className="w-4 h-4 text-muted-foreground" />
               <input placeholder="Search…" className="bg-transparent outline-none text-sm w-40" />
             </div>
+            <button 
+              onClick={() => { logout(); toast("Signed out of admin"); }} 
+              className="flex items-center gap-2 rounded-full bg-card border border-border px-5 py-2 text-sm font-semibold text-terracotta hover:bg-terracotta/10 hover:border-terracotta transition-all shadow-sm"
+            >
+              <Power className="w-4 h-4" /> <span className="hidden sm:inline">Sign out</span>
+            </button>
             <div className="w-10 h-10 rounded-full bg-forest-deep text-gold grid place-items-center font-semibold text-sm shrink-0">AS</div>
           </div>
         </div>
@@ -55,7 +63,6 @@ function Admin() {
             { id: "careers", label: "Careers", icon: Briefcase },
             { id: "content", label: "Content & Copy", icon: Type },
             { id: "settings", label: "Site Settings", icon: Settings2 },
-
           ] as { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[]).map((t) => (
             <button
               key={t.id}
@@ -78,7 +85,6 @@ function Admin() {
         {section === "careers" && <CareersTable />}
         {section === "content" && <ContentManager />}
         {section === "settings" && <SiteSettings />}
-
       </div>
     </div>
   );
@@ -86,14 +92,37 @@ function Admin() {
 
 
 function Dashboard() {
-  const { orders } = useSite();
+  const { allProducts } = useSite();
+  const { token, logout } = useAuth();
+  const [stats, setStats] = useState({ revenue: 0, orderCount: 0, customerCount: 0, chartData: [] as number[] });
+  
+  useEffect(() => {
+    if (!token) return;
+    fetch("http://127.0.0.1:8000/api/dashboard/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => {
+      // 🚨 Auto-Logout Bouncer: Catches dead tokens!
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        toast.error("Session expired. Please sign in again.");
+        throw new Error("Unauthorized");
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.revenue !== undefined) setStats(data);
+    })
+    .catch(console.error);
+  }, [token, logout]);
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <KPI title="Revenue" value="₹4,82,340" delta="+12.4%" up icon={IndianRupee} />
-        <KPI title="Orders" value={String(orders.length + 1279)} delta="+8.1%" up icon={Package} />
-        <KPI title="New customers" value="342" delta="+22%" up icon={Users} />
-        <KPI title="Refunds" value="₹4,120" delta="−2.3%" up={false} icon={TrendingUp} />
+      {/* Grid updated to 3 columns since Refunds is gone */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+        <KPI title="Revenue" value={`₹${stats.revenue.toLocaleString()}`} delta="+0.0%" up icon={IndianRupee} />
+        <KPI title="Orders" value={String(stats.orderCount)} delta="+0.0%" up icon={Package} />
+        <KPI title="New customers" value={String(stats.customerCount || 0)} delta="+0.0%" up icon={Users} />
       </div>
 
       <div className="grid lg:grid-cols-[1.6fr_1fr] gap-6">
@@ -101,27 +130,28 @@ function Dashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-display text-xl md:text-2xl text-forest-deep">Sales this month</p>
-              <p className="text-sm text-muted-foreground">₹4,82,340 · +12.4% vs last month</p>
+              <p className="text-sm text-muted-foreground">₹{stats.revenue.toLocaleString()} total</p>
             </div>
             <select className="rounded-full bg-muted border border-border px-4 py-2 text-sm">
               <option>Last 30 days</option><option>Last 7 days</option><option>Last 90 days</option>
             </select>
           </div>
-          <MiniChart />
+          <MiniChart data={stats.chartData} />
         </div>
 
         <div className="rounded-2xl bg-forest-deep text-cream p-6">
           <p className="font-display text-2xl">Top products</p>
           <div className="mt-4 space-y-3">
-            {baseProducts.slice(0, 5).map((p, i) => (
+            {allProducts.length === 0 && <p className="text-sm text-cream/60">No products added yet.</p>}
+            {allProducts.slice(0, 5).map((p, i) => (
               <div key={p.slug} className="flex items-center gap-3">
                 <span className="w-6 text-gold font-display text-lg shrink-0">0{i + 1}</span>
-                <img src={p.image} alt="" className="w-9 h-11 object-contain shrink-0" />
+                <img src={p.image} alt="" className="w-9 h-11 object-contain shrink-0 bg-cream rounded" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{p.name}</p>
-                  <p className="text-xs text-cream/60">{Math.round(400 - i * 47)} sold</p>
+                  <p className="text-xs text-cream/60">{p.category}</p>
                 </div>
-                <p className="text-sm text-gold font-semibold shrink-0">₹{(p.price * (400 - i * 47)).toLocaleString()}</p>
+                <p className="text-sm text-gold font-semibold shrink-0">₹{p.price}</p>
               </div>
             ))}
           </div>
@@ -153,13 +183,28 @@ function KPI({ title, value, delta, up, icon: Icon }: { title: string; value: st
   );
 }
 
-function MiniChart() {
-  const bars = [42, 58, 46, 72, 60, 88, 74, 92, 80, 96, 84, 108];
-  const max = Math.max(...bars);
+function MiniChart({ data }: { data?: number[] }) {
+  // Pad the array with leading zeros so it always forms a nice 12-column grid instead of a solid block
+  const rawData = data && data.length > 0 ? data : [];
+  const bars = [...Array(Math.max(0, 12 - rawData.length)).fill(0), ...rawData].slice(-12);
+  const max = Math.max(...bars, 100); 
+
   return (
-    <div className="mt-6 flex items-end gap-1.5 md:gap-2 h-32 md:h-40">
+    <div className="mt-6 flex items-end gap-2 h-32 md:h-40">
       {bars.map((v, i) => (
-        <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-forest-deep to-gold" style={{ height: `${(v / max) * 100}%` }} />
+        <div 
+          key={i} 
+          title={`₹${v}`} // Hover tooltip to see exact value
+          className="relative flex-1 rounded-t-md bg-gradient-to-t from-forest-deep to-gold transition-all duration-1000 group hover:opacity-80" 
+          style={{ height: `${(v / max) * 100}%`, minHeight: '4px' }} 
+        >
+          {/* Optional: Show small text on hover above the bar */}
+          {v > 0 && (
+            <span className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-mono text-muted-foreground whitespace-nowrap z-10">
+              ₹{v}
+            </span>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -167,13 +212,14 @@ function MiniChart() {
 
 function ProductsTable() {
   const { extraProducts, removeProduct } = useSite();
-  const rows = [...extraProducts, ...baseProducts];
+  const rows = extraProducts; 
+  
   return (
     <div className="rounded-2xl bg-card border border-border overflow-hidden">
       <div className="flex items-center justify-between p-5 md:p-6 flex-wrap gap-3">
         <div>
           <p className="font-display text-xl md:text-2xl text-forest-deep">Products</p>
-          <p className="text-sm text-muted-foreground">{rows.length} SKUs in catalog</p>
+          <p className="text-sm text-muted-foreground">{rows.length} real SKUs in catalog</p>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -189,43 +235,186 @@ function ProductsTable() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((p, i) => {
-              const stock = 100 - i * 6;
-              const isCustom = extraProducts.some((x) => x.slug === p.slug);
-              return (
-                <tr key={p.slug} className="border-t border-border">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <img src={p.image} alt="" className="w-10 h-12 object-contain shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate flex items-center gap-2">
-                          {p.name}
-                          {isCustom && <span className="text-[9px] font-bold uppercase tracking-widest bg-gold text-forest-deep px-1.5 py-0.5 rounded">Custom</span>}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{p.slug}</p>
-                      </div>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-muted-foreground">No products found. Add one above.</td>
+              </tr>
+            )}
+            {rows.map((p) => (
+              <tr key={p.slug} className="border-t border-border">
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <img src={p.image} alt="" className="w-10 h-12 object-contain shrink-0 bg-muted/30 rounded" />
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{p.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{p.slug}</p>
                     </div>
-                  </td>
-                  <td className="p-4 text-muted-foreground">{p.category}</td>
-                  <td className="p-4 font-semibold">₹{p.price}</td>
-                  <td className="p-4">
-                    <span className={stock < 30 ? "text-terracotta font-semibold" : "text-muted-foreground"}>{stock} units</span>
-                  </td>
-                  <td className="p-4">
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-forest-deep text-gold">Active</span>
-                  </td>
-                  <td className="p-4 text-right">
-                    {isCustom ? (
-                      <button onClick={() => { removeProduct(p.slug); toast.success("Product removed"); }} className="text-muted-foreground hover:text-terracotta">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <MoreHorizontal className="w-4 h-4 inline text-muted-foreground" />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                  </div>
+                </td>
+                <td className="p-4 text-muted-foreground">{p.category}</td>
+                <td className="p-4 font-semibold">₹{p.price}</td>
+                <td className="p-4"><span className="text-muted-foreground">Unlimited</span></td>
+                <td className="p-4"><span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-forest-deep text-gold">Active</span></td>
+                <td className="p-4 text-right">
+                  <button onClick={() => { removeProduct(p.slug); toast.success("Product removed from UI"); }} className="text-muted-foreground hover:text-terracotta">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function OrdersTable({ compact }: { compact?: boolean }) {
+  const { token, logout } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("http://127.0.0.1:8000/api/orders/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => {
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        throw new Error("Unauthorized");
+      }
+      return res.json();
+    })
+    .then(data => {
+      setOrders(Array.isArray(data) ? data : []);
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, [token, logout]);
+
+  const list = compact ? orders.slice(0, 6) : orders;
+  const statuses = ["Processing", "Shipped", "Delivered", "Cancelled"];
+
+  return (
+    <div className={compact ? "" : "rounded-2xl bg-card border border-border overflow-hidden"}>
+      {!compact && (
+        <div className="p-5 md:p-6">
+          <p className="font-display text-xl md:text-2xl text-forest-deep">Live Orders</p>
+          <p className="text-sm text-muted-foreground">{orders.length} total fetched from database</p>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead className="bg-muted/60 text-xs uppercase tracking-widest text-muted-foreground">
+            <tr>
+              <th className="text-left p-4">Order ID</th>
+              <th className="text-left p-4">Customer</th>
+              <th className="text-left p-4">Total</th>
+              <th className="text-left p-4">Status</th>
+              <th className="text-left p-4">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Fetching orders...</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No orders found in database.</td></tr>}
+            {list.map((o) => (
+              <tr key={o.order_id || o.id} className="border-t border-border">
+                <td className="p-4 font-semibold">{o.order_id || o.id}</td>
+                <td className="p-4">
+                  <p className="font-semibold">{o.customer_name || "Unknown"}</p>
+                  <p className="text-xs text-muted-foreground">{o.customer_email || ""}</p>
+                </td>
+                <td className="p-4 font-semibold">₹{o.total_amount}</td>
+                <td className="p-4">
+                  <select
+                    value={o.status || "Processing"}
+                    onChange={(e) => toast.info("Status updates require backend PUT endpoint")}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border-0 outline-none cursor-pointer ${
+                      o.status === "Delivered" ? "bg-forest-deep text-gold" :
+                      o.status === "Shipped" ? "bg-gold text-forest-deep" :
+                      o.status === "Cancelled" ? "bg-destructive/10 text-terracotta" :
+                      "bg-muted text-forest-deep"
+                    }`}
+                  >
+                    {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td className="p-4 text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CustomersTable() {
+  const { token, logout } = useAuth();
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("http://127.0.0.1:8000/api/customers/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => {
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        throw new Error("Unauthorized");
+      }
+      return res.json();
+    })
+    .then(data => {
+      setCustomers(Array.isArray(data) ? data : []);
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, [token, logout]);
+
+  return (
+    <div className="rounded-2xl bg-card border border-border overflow-hidden">
+      <div className="p-5 md:p-6">
+        <p className="font-display text-xl md:text-2xl text-forest-deep">Customers</p>
+        <p className="text-sm text-muted-foreground">Registered users mapped directly from database.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead className="bg-muted/60 text-xs uppercase tracking-widest text-muted-foreground">
+            <tr>
+              <th className="text-left p-4">Customer</th>
+              <th className="text-left p-4">Total Orders</th>
+              <th className="text-left p-4">Lifetime Spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">Fetching customers...</td></tr>}
+            {!loading && customers.length === 0 && <tr><td colSpan={3} className="p-6 text-center text-muted-foreground">No customers found.</td></tr>}
+            {customers.map((c, i) => (
+              <tr key={c.email || i} className="border-t border-border">
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-forest-deep text-gold grid place-items-center text-xs font-semibold shrink-0 uppercase">
+                      {(c.name || c.email || "U").charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{c.name || "Customer"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-4 font-semibold">{c.orders || 0}</td>
+                <td className="p-4 font-semibold">₹{(c.spend || 0).toLocaleString()}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -235,6 +424,9 @@ function ProductsTable() {
 
 function AddProductForm() {
   const { addProduct } = useSite();
+  const { token } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [category, setCategory] = useState<Product["category"]>("Nuts");
@@ -243,7 +435,10 @@ function AddProductForm() {
   const [rating, setRating] = useState(4.8);
   const [reviews, setReviews] = useState(100);
   const [origin, setOrigin] = useState("");
+  
   const [image, setImage] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
   const [description, setDescription] = useState("");
   const [bestseller, setBestseller] = useState(false);
   const [newArrival, setNewArrival] = useState(false);
@@ -258,17 +453,14 @@ function AddProductForm() {
     { label: "Energy", value: "" },
   ]);
 
-
-  const addBadge = () => {
-    if (badgeInput.trim()) { setBadges([...badges, badgeInput.trim()]); setBadgeInput(""); }
-  };
+  const addBadge = () => { if (badgeInput.trim()) { setBadges([...badges, badgeInput.trim()]); setBadgeInput(""); } };
   const rmBadge = (i: number) => setBadges(badges.filter((_, x) => x !== i));
-
   const addWeight = () => setWeights([...weights, { label: "", value: "", price: 0 }]);
   const rmWeight = (i: number) => setWeights(weights.filter((_, x) => x !== i));
 
   const handleImage = (file: File | null) => {
     if (!file) return;
+    setImageFile(file);
     const r = new FileReader();
     r.onload = () => setImage(String(r.result));
     r.readAsDataURL(file);
@@ -283,29 +475,53 @@ function AddProductForm() {
     r.readAsDataURL(file);
   };
 
-  const submit = () => {
-    if (!name || !price || !image) { toast.error("Name, price and image are required"); return; }
+  const submit = async () => {
+    if (!name || !price || !imageFile) { toast.error("Name, price and image are required"); return; }
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Math.random().toString(36).slice(2, 6);
     const cleanSlides = slides.filter((s) => s.image && s.title);
+    
     const product: Product = {
       slug, name, tagline: tagline || name, category, price,
       compareAt: compareAt > price ? compareAt : undefined,
-      rating, reviews, image,
-      badges, description: description || tagline, origin: origin || "India",
+      rating, reviews, image, badges, description: description || tagline, origin: origin || "India",
       nutrition: nutrition.filter((n) => n.value),
       weights: weights.filter((w) => w.label && w.price > 0),
       bestseller, newArrival,
       slides: cleanSlides.length > 0 ? cleanSlides : undefined,
     };
     if (product.weights.length === 0) { toast.error("Add at least one weight/price"); return; }
-    addProduct(product);
-    toast.success(`${name} added to catalog`);
-    // Reset
-    setName(""); setTagline(""); setPrice(0); setCompareAt(0); setOrigin(""); setImage("");
-    setDescription(""); setBadges([]); setWeights([{ label: "250g", value: "250", price: 0 }]);
-    setSlides([]); setBestseller(false); setNewArrival(false);
-  };
 
+    setIsLoading(true);
+
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("slug", slug);
+    formData.append("price", price.toString());
+    formData.append("weight", weights[0]?.label || "250g");
+    formData.append("description", description || tagline);
+    formData.append("image", imageFile); 
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/products/catalog/", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) throw new Error("Django rejected the product data.");
+
+      addProduct(product);
+      toast.success(`${name} added to catalog & database!`);
+      
+      setName(""); setTagline(""); setPrice(0); setCompareAt(0); setOrigin(""); setImage(""); setImageFile(null);
+      setDescription(""); setBadges([]); setWeights([{ label: "250g", value: "250", price: 0 }]);
+      setSlides([]); setBestseller(false); setNewArrival(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save to database. Check console logs.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-6">
@@ -335,7 +551,6 @@ function AddProductForm() {
         </Field>
       </div>
 
-      {/* Tags */}
       <div>
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Badges (Protein Rich, Omega-3, …)</p>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -352,13 +567,11 @@ function AddProductForm() {
         </div>
       </div>
 
-      {/* Flags */}
       <div className="flex flex-wrap gap-3">
         <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={bestseller} onChange={(e) => setBestseller(e.target.checked)} /> Bestseller</label>
         <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={newArrival} onChange={(e) => setNewArrival(e.target.checked)} /> New arrival</label>
       </div>
 
-      {/* Weights */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Weight variants & pricing</p>
@@ -376,7 +589,6 @@ function AddProductForm() {
         </div>
       </div>
 
-      {/* Nutrition */}
       <div>
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Nutrition (Protein, Fibre, Omega, Energy…)</p>
         <div className="grid sm:grid-cols-2 gap-2">
@@ -390,12 +602,10 @@ function AddProductForm() {
         <button onClick={() => setNutrition([...nutrition, { label: "", value: "" }])} className="mt-2 text-xs font-semibold text-forest-deep hover:text-terracotta inline-flex items-center gap-1"><Plus className="w-3 h-3" /> Add nutrient</button>
       </div>
 
-      {/* Description */}
       <Field label="The Story / Description" full>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} className={inputCls} placeholder="Slow-cured, hand-picked and packed within 14 days of harvest…" />
       </Field>
 
-      {/* Detail slideshow */}
       <div className="rounded-2xl border border-dashed border-border p-4 md:p-5">
         <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
           <div>
@@ -427,14 +637,13 @@ function AddProductForm() {
       </div>
 
       <div className="flex gap-3">
-        <button onClick={submit} className="rounded-full bg-forest-deep text-cream px-7 py-3.5 text-sm font-semibold hover:bg-forest transition inline-flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Save product
+        <button disabled={isLoading} onClick={submit} className="rounded-full bg-forest-deep text-cream px-7 py-3.5 text-sm font-semibold hover:bg-forest transition inline-flex items-center gap-2 disabled:opacity-50">
+          <Plus className="w-4 h-4" /> {isLoading ? "Saving to Database..." : "Save product"}
         </button>
       </div>
     </div>
   );
 }
-
 
 const inputCls = "rounded-xl border border-border bg-cream px-4 py-3 text-sm outline-none focus:border-forest-deep w-full";
 
@@ -443,117 +652,6 @@ function Field({ label, children, full }: { label: string; children: React.React
     <div className={`flex flex-col ${full ? "md:col-span-2" : ""}`}>
       <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1">{label}</label>
       {children}
-    </div>
-  );
-}
-
-function OrdersTable({ compact }: { compact?: boolean }) {
-  const { orders, updateOrderStatus } = useSite();
-  const list = compact ? orders.slice(0, 6) : orders;
-  const statuses: Order["status"][] = ["Processing", "Shipped", "Delivered", "Cancelled"];
-  return (
-    <div className={compact ? "" : "rounded-2xl bg-card border border-border overflow-hidden"}>
-      {!compact && (
-        <div className="p-5 md:p-6">
-          <p className="font-display text-xl md:text-2xl text-forest-deep">Orders</p>
-          <p className="text-sm text-muted-foreground">{orders.length} total · change status inline</p>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[640px]">
-          <thead className="bg-muted/60 text-xs uppercase tracking-widest text-muted-foreground">
-            <tr>
-              <th className="text-left p-4">Order</th>
-              <th className="text-left p-4">Customer</th>
-              <th className="text-left p-4">Total</th>
-              <th className="text-left p-4">Status</th>
-              <th className="text-left p-4">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((o) => (
-              <tr key={o.id} className="border-t border-border">
-                <td className="p-4 font-semibold">{o.id}</td>
-                <td className="p-4">
-                  <p className="font-semibold">{o.customer}</p>
-                  <p className="text-xs text-muted-foreground">{o.email}</p>
-                </td>
-                <td className="p-4 font-semibold">₹{o.total}</td>
-                <td className="p-4">
-                  <select
-                    value={o.status}
-                    onChange={(e) => { updateOrderStatus(o.id, e.target.value as Order["status"]); toast.success(`${o.id} → ${e.target.value}`); }}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border-0 outline-none cursor-pointer ${
-                      o.status === "Delivered" ? "bg-forest-deep text-gold" :
-                      o.status === "Shipped" ? "bg-gold text-forest-deep" :
-                      o.status === "Cancelled" ? "bg-destructive/10 text-terracotta" :
-                      "bg-muted text-forest-deep"
-                    }`}
-                  >
-                    {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td className="p-4 text-muted-foreground">{o.date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function CustomersTable() {
-  const customers = [
-    { name: "Aanya Sharma", email: "aanya@grams.snack", orders: 12, spend: 8240, tier: "Silver" },
-    { name: "Kabir Singh", email: "kabir@x.com", orders: 8, spend: 5199, tier: "Silver" },
-    { name: "Meera Patel", email: "meera@x.com", orders: 24, spend: 18500, tier: "Gold" },
-    { name: "Ishaan Rao", email: "ishaan@x.com", orders: 4, spend: 1849, tier: "Bronze" },
-    { name: "Riya Mehta", email: "riya@x.com", orders: 15, spend: 11200, tier: "Gold" },
-  ];
-  return (
-    <div className="rounded-2xl bg-card border border-border overflow-hidden">
-      <div className="p-5 md:p-6">
-        <p className="font-display text-xl md:text-2xl text-forest-deep">Customers</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[560px]">
-          <thead className="bg-muted/60 text-xs uppercase tracking-widest text-muted-foreground">
-            <tr>
-              <th className="text-left p-4">Customer</th>
-              <th className="text-left p-4">Orders</th>
-              <th className="text-left p-4">Lifetime spend</th>
-              <th className="text-left p-4">Tier</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((c) => (
-              <tr key={c.email} className="border-t border-border">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-forest-deep text-gold grid place-items-center text-xs font-semibold shrink-0">
-                      {c.name.split(" ").map((n) => n[0]).join("")}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{c.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4 font-semibold">{c.orders}</td>
-                <td className="p-4 font-semibold">₹{c.spend.toLocaleString()}</td>
-                <td className="p-4">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    c.tier === "Gold" ? "bg-gold text-forest-deep" :
-                    c.tier === "Silver" ? "bg-muted text-forest-deep" :
-                    "bg-terracotta/20 text-terracotta"
-                  }`}>{c.tier}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -578,7 +676,6 @@ function ContentManager() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Quality / value prop cards */}
       <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-4">
         <p className="font-display text-2xl md:text-3xl text-forest-deep">Home quality cards</p>
         <p className="text-sm text-muted-foreground -mt-3">The four feature cards under the hero (Farm to pouch, Small-batch craft, etc).</p>
@@ -606,7 +703,6 @@ function ContentManager() {
         </div>
       </div>
 
-      {/* Stats strip */}
       <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-4">
         <p className="font-display text-2xl md:text-3xl text-forest-deep">Home stats strip</p>
         <p className="text-sm text-muted-foreground -mt-3">The big numbers shown in the hero and the dark strip.</p>
@@ -623,7 +719,6 @@ function ContentManager() {
         </div>
       </div>
 
-      {/* Product of the month */}
       <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-5">
         <p className="font-display text-2xl md:text-3xl text-forest-deep">Product of the month</p>
         <p className="text-sm text-muted-foreground -mt-3">One feature block each for Nuts, Seeds and Dry fruits.</p>
@@ -646,7 +741,6 @@ function ContentManager() {
         <button onClick={() => { setMonthPicks(m); toast.success("Product of the month updated"); }} className="rounded-full bg-forest-deep text-cream px-6 py-2.5 text-sm font-semibold">Save picks</button>
       </div>
 
-      {/* Titles & subtitles */}
       <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-5">
         <p className="font-display text-2xl md:text-3xl text-forest-deep">Titles & subtitles</p>
         <p className="text-sm text-muted-foreground -mt-3">Section headings across the site, including the chatbot label.</p>
@@ -663,7 +757,6 @@ function ContentManager() {
         <button onClick={() => { setCopy(c); toast.success("Copy updated"); }} className="rounded-full bg-forest-deep text-cream px-6 py-2.5 text-sm font-semibold">Save copy</button>
       </div>
 
-      {/* Contact details */}
       <div className="rounded-2xl bg-card border border-border p-5 md:p-8 space-y-4">
         <p className="font-display text-2xl md:text-3xl text-forest-deep">Contact details</p>
         <p className="text-sm text-muted-foreground -mt-3">One line per row — shown on the Contact page.</p>
@@ -687,7 +780,6 @@ function ContentManager() {
   );
 }
 
-
 function SiteSettings() {
   const { bannerWords, setBannerWords } = useSite();
   const [words, setWords] = useState<string[]>(bannerWords);
@@ -705,7 +797,6 @@ function SiteSettings() {
       </div>
       <p className="text-sm text-muted-foreground -mt-4">The scrolling gold marquee under the hero. Edit each phrase — they cycle in order.</p>
 
-      {/* Preview */}
       <div className="bg-gold text-forest-deep py-3 overflow-hidden rounded-xl">
         <div className="flex whitespace-nowrap marquee-track font-display text-xl italic">
           {Array.from({ length: 2 }).map((_, i) => (
@@ -1048,7 +1139,6 @@ function ReviewsManager() {
     </div>
   );
 }
-
 
 function CouponsManager() {
   const { coupons, addCoupon, updateCoupon, removeCoupon } = useSite();

@@ -4,14 +4,14 @@ import { Mail, Lock, User, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import lifestyle from "@/assets/lifestyle-1.jpg";
-import { useAuth } from "@/lib/auth-store";
+import { useAuth, useAuthStore } from "@/lib/auth-store";
 import { useCart } from "@/lib/cart-store";
 import { useWishlist } from "@/lib/wishlist-store";
 import { isPasswordValid } from "@/lib/password";
 import { PasswordChecklist } from "@/components/site/PasswordChecklist";
 
 // Replace with your Google Client ID
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 // 1. We wrap the page here so the Google hook has context, without touching __root.tsx
 function AuthWrapper() {
@@ -67,23 +67,40 @@ function Auth() {
     e.preventDefault();
     const mail = email.trim();
     
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return toast.error("Enter a valid email address");
-    if (mode === "signup" && !isPasswordValid(password))
-      return toast.error("Password needs 6+ characters, a number and a special character");
-    if (mode === "signin" && password.length < 6) return toast.error("Password must be at least 6 characters");
-    if (mode === "signup" && name.trim().length < 2) return toast.error("Enter your full name");
+    // 1. Client-Side Validation Toasts
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      toast.error("Enter a valid email address");
+      return;
+    }
+    if (mode === "signup" && name.trim().length < 2) {
+      toast.error("Enter your full name");
+      return;
+    }
+    if (mode === "signup" && !isPasswordValid(password)) {
+      toast.error("Password needs 6+ characters, a number and a special character");
+      return;
+    }
+    if (mode === "signin" && password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
 
-    // 3. Connect to Django endpoints
+    // 2. Connect to Django endpoints
     let success = false;
     if (mode === "signup") {
-      success = await signupWithEmail(mail, password, name); // Added 'name' here!
+      success = await signupWithEmail(mail, password, name);
     } else {
       success = await loginWithEmail(mail, password);
     }
 
+    // 3. Success & Error Popups
     if (success) {
       toast.success(mode === "signin" ? "Welcome back!" : "Account created");
       setTimeout(finish, 0);
+    } else {
+      // Pull the exact error message that Django sent back to show in the popup
+      const errorMessage = useAuthStore.getState().error;
+      toast.error(errorMessage || (mode === "signin" ? "Invalid email or password" : "Registration failed"));
     }
   };
 

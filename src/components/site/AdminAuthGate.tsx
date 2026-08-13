@@ -1,55 +1,43 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Lock, LogOut, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-
-const KEY = "grams-admin-auth";
-// Demo credentials (placeholder auth — replace with real auth later)
-const DEMO_USER = "admin";
-const DEMO_PASS = "grams2025";
+import { useAuth, useAuthStore } from "@/lib/auth-store";
 
 export function AdminAuthGate({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
-  const [userId, setUserId] = useState("");
+  const { isAuthenticated, ready, loginWithEmail, logout, isLoading } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    try { setAuthed(sessionStorage.getItem(KEY) === "1"); } catch { /* ignore */ }
-    setReady(true);
-  }, []);
-
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (userId.trim() === DEMO_USER && password === DEMO_PASS) {
-      try { sessionStorage.setItem(KEY, "1"); } catch { /* ignore */ }
-      setAuthed(true);
-      setError("");
-      toast.success("Welcome back, admin");
+    
+    // Connect to Django securely via your store
+    const success = await loginWithEmail(email, password);
+    
+    if (success) {
+      toast.success("Welcome to the command center");
     } else {
-      setError("Invalid user ID or password");
+      // Pull the exact error message from Django
+      const errorMessage = useAuthStore.getState().error;
+      toast.error(errorMessage || "Invalid admin credentials");
     }
   }
 
-  function logout() {
-    try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
-    setAuthed(false);
-    setUserId(""); setPassword("");
-  }
-
+  // Prevent flash of login screen if the app is still loading the token from memory
   if (!ready) return <div className="min-h-screen bg-muted/40" />;
 
-  if (authed) {
+  // If already logged in (via the main site or previous session), show the dashboard
+  if (isAuthenticated) {
     return (
       <div className="relative">
         {children}
-        <button
-          onClick={logout}
-          className="fixed bottom-24 left-6 z-40 inline-flex items-center gap-2 rounded-full border border-border bg-card/80 backdrop-blur px-4 py-2 text-sm font-medium hover:bg-muted transition"
+        {/* <button
+          onClick={() => { logout(); toast("Signed out of admin"); }}
+          className="fixed bottom-8 right-8 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 backdrop-blur-md px-5 py-2.5 text-sm font-semibold text-terracotta hover:bg-terracotta/10 hover:border-terracotta transition-all shadow-lg"
         >
           <LogOut className="w-4 h-4" /> Sign out
-        </button>
+        </button> */}
       </div>
     );
   }
@@ -62,17 +50,19 @@ export function AdminAuthGate({ children }: { children: React.ReactNode }) {
         </div>
         <p className="text-xs tracking-[0.3em] uppercase text-gold">Grams · Admin</p>
         <h1 className="font-display text-3xl md:text-4xl text-forest-deep mt-1">Sign in</h1>
-        <p className="text-sm text-muted-foreground mt-2">Restricted area. Enter your credentials to open the command center.</p>
+        <p className="text-sm text-muted-foreground mt-2">Restricted area. Enter your administrator credentials.</p>
 
         <form onSubmit={submit} className="mt-7 space-y-4">
           <div>
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">User ID</label>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">Admin Email</label>
             <input
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              autoComplete="username"
-              placeholder="admin"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="admin@grams.snack"
               className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-gold transition"
+              required
             />
           </div>
           <div>
@@ -85,6 +75,7 @@ export function AdminAuthGate({ children }: { children: React.ReactNode }) {
                 autoComplete="current-password"
                 placeholder="••••••••"
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-11 text-sm outline-none focus:border-gold transition"
+                required
               />
               <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -92,16 +83,18 @@ export function AdminAuthGate({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {error && <p className="text-sm text-terracotta">{error}</p>}
-
-          <button type="submit" className="w-full rounded-full bg-gold px-6 py-3 text-sm font-semibold text-forest-deep hover:bg-gold-soft transition">
-            Enter dashboard
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full rounded-full bg-gold px-6 py-3 text-sm font-semibold text-forest-deep hover:bg-gold-soft transition active:scale-[0.98] disabled:opacity-50"
+          >
+            {isLoading ? "Verifying..." : "Enter dashboard"}
           </button>
         </form>
 
-        <div className="mt-6 flex items-start gap-2 rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-gold" />
-          <span>Demo credentials — user ID <b className="text-foreground">admin</b>, password <b className="text-foreground">grams2025</b>. Placeholder only; wire real auth before launch.</span>
+        <div className="mt-6 flex items-start gap-2 rounded-xl border border-border/50 bg-muted/30 p-3 text-xs text-muted-foreground">
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-forest-deep" />
+          <span>Secured by Django JWT Authentication. This gate is connected to the live database.</span>
         </div>
       </div>
     </div>
