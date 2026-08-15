@@ -894,7 +894,8 @@ function CareersTable() {
 }
 
 function GiftingManager() {
-  const { giftArticles, addGiftArticle, updateGiftArticle, removeGiftArticle } = useSite();
+  const { token } = useAuth();
+  const [giftArticles, setGiftArticles] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [body, setBody] = useState("");
@@ -904,6 +905,16 @@ function GiftingManager() {
   const [editing, setEditing] = useState<string | null>(null);
 
   const MAX = 5;
+
+  // 1. Fetch live articles from Django
+  const fetchArticles = () => {
+    fetch("http://127.0.0.1:8000/api/gifting/")
+      .then(res => res.json())
+      .then(data => setGiftArticles(Array.isArray(data) ? data : []))
+      .catch(console.error);
+  };
+
+  useEffect(() => { fetchArticles(); }, []);
 
   const onImages = (files: FileList | null) => {
     if (!files || !files.length) return;
@@ -922,24 +933,67 @@ function GiftingManager() {
     setTitle(""); setExcerpt(""); setBody(""); setAuthor(""); setImages([]); setCategory("Corporate"); setEditing(null);
   };
 
-  const submit = () => {
+  // 2. Post real data to Django
+  const submit = async () => {
     if (!title || !excerpt || !body) { toast.error("Title, excerpt and story body are required"); return; }
-    if (editing) {
-      updateGiftArticle(editing, { title, excerpt, body, category, author: author || undefined, images });
-      toast.success("Article updated");
-    } else {
-      addGiftArticle({ title, excerpt, body, category, author: author || undefined, images });
-      toast.success(`"${title}" published to Gifting`);
+    
+    const payload = { title, excerpt, body, category, author: author || undefined, images };
+    const url = editing ? `http://127.0.0.1:8000/api/gifting/${editing}/` : "http://127.0.0.1:8000/api/gifting/";
+    
+    try {
+      const res = await fetch(url, {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) throw new Error("Failed to save");
+      
+      toast.success(editing ? "Article updated" : `"${title}" published to Gifting`);
+      reset();
+      fetchArticles(); // Refresh the list from the database
+    } catch (err) {
+      toast.error("Failed to save article. Check Django logs.");
     }
-    reset();
+  };
+
+  // 3. Delete real data from Django
+  const removeGiftArticle = async (id: string) => {
+    if (!confirm("Delete article?")) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/gifting/${id}/`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success("Article deleted");
+        fetchArticles();
+      }
+    } catch (err) {
+      toast.error("Failed to delete article");
+    }
   };
 
   const startEdit = (id: string) => {
     const a = giftArticles.find((x) => x.id === id);
     if (!a) return;
     setEditing(a.id); setTitle(a.title); setExcerpt(a.excerpt); setBody(a.body);
-    setCategory(a.category); setAuthor(a.author ?? ""); setImages(a.images);
+    setCategory(a.category); setAuthor(a.author ?? ""); setImages(a.images || []);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const updateCategory = async (id: string, currentArticle: any, newCat: string) => {
+    try {
+      await fetch(`http://127.0.0.1:8000/api/gifting/${id}/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ ...currentArticle, category: newCat })
+      });
+      fetchArticles();
+      toast.success("Category updated");
+    } catch (e) {
+      toast.error("Failed to update category");
+    }
   };
 
   return (
@@ -1003,7 +1057,7 @@ function GiftingManager() {
           {giftArticles.map((a) => (
             <div key={a.id} className="rounded-xl border border-border p-4 flex gap-3">
               <div className="w-20 h-24 shrink-0 rounded-lg bg-muted/40 grid place-items-center overflow-hidden">
-                {a.images[0] ? <img src={a.images[0]} alt="" className="max-w-full max-h-full object-contain" /> : <Gift className="w-6 h-6 text-muted-foreground" />}
+                {a.images && a.images[0] ? <img src={a.images[0]} alt="" className="max-w-full max-h-full object-contain" /> : <Gift className="w-6 h-6 text-muted-foreground" />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] tracking-widest uppercase text-gold">{a.category} · {a.date}</p>
@@ -1012,15 +1066,15 @@ function GiftingManager() {
                 <div className="mt-2 flex items-center gap-2">
                   <select
                     value={a.category}
-                    onChange={(e) => updateGiftArticle(a.id, { category: e.target.value as GiftCategory })}
+                    onChange={(e) => updateCategory(a.id, a, e.target.value)}
                     className="text-[11px] rounded-full bg-muted px-2 py-1 border border-border"
                   >
                     <option>Corporate</option><option>Birthday</option><option>Festive</option>
                   </select>
                   <button onClick={() => startEdit(a.id)} className="text-[11px] rounded-full border border-border px-2.5 py-1 hover:bg-muted transition">Edit</button>
-                  <button onClick={() => { if (confirm("Delete article?")) removeGiftArticle(a.id); }} className="text-muted-foreground hover:text-terracotta"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => removeGiftArticle(a.id)} className="text-muted-foreground hover:text-terracotta"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
-                <p className="mt-1 text-[10px] text-muted-foreground">{a.images.length} image{a.images.length === 1 ? "" : "s"}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{a.images?.length || 0} image{(a.images?.length || 0) === 1 ? "" : "s"}</p>
               </div>
             </div>
           ))}

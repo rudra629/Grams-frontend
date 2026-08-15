@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { User, Package, MapPin, Settings, Heart, LogOut, Edit3, Plus, Check, Clock, Truck, X, Star } from "lucide-react";
 import { toast } from "sonner";
-import { products } from "@/lib/products";
 import { useSite } from "@/lib/site-store";
 import { useAuth } from "@/lib/auth-store";
 import { useWishlist } from "@/lib/wishlist-store";
@@ -16,7 +15,7 @@ type Tab = "overview" | "orders" | "addresses" | "wishlist" | "settings";
 
 function Profile() {
   const [tab, setTab] = useState<Tab>("overview");
-  const { user, ready, signOut } = useAuth();
+  const { user, ready, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,7 +32,6 @@ function Profile() {
 
   if (!user) return <div className="container-x py-24 text-center text-muted-foreground">Redirecting to sign in…</div>;
 
-  // Safe display name helper for Django user records
   const displayName = user?.first_name || user?.username || user?.email?.split('@')[0] || 'there';
 
   return (
@@ -42,10 +40,10 @@ function Profile() {
         <div>
           <p className="text-xs tracking-[0.3em] uppercase text-gold">My Account</p>
           <h1 className="mt-2 font-display text-5xl md:text-6xl text-forest-deep">Hey, {displayName} 👋</h1>
-          <p className="mt-2 text-muted-foreground">{user.email} · Silver Snacker</p>
+          <p className="mt-2 text-muted-foreground">{user.email}</p>
         </div>
         <button
-          onClick={() => { signOut(); toast("Signed out"); navigate({ to: "/", replace: true }); }}
+          onClick={() => { logout(); toast("Signed out"); navigate({ to: "/", replace: true }); }}
           className="rounded-full border-2 border-border px-5 py-2.5 text-sm font-semibold inline-flex items-center gap-2 hover:border-terracotta hover:text-terracotta transition"
         >
           <LogOut className="w-4 h-4" /> Sign out
@@ -78,30 +76,31 @@ function Profile() {
 }
 
 function Overview({ onGo }: { onGo: (t: Tab) => void }) {
+  const { token } = useAuth();
+  const [stats, setStats] = useState({ orders: 0, spend: 0, addresses: 0 });
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("http://127.0.0.1:8000/api/profile/stats/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setStats(data))
+    .catch(console.error);
+  }, [token]);
+
   return (
     <div className="space-y-6">
-      <div className="grid sm:grid-cols-3 gap-4">
-        <Stat n="12" l="Total orders" />
-        <Stat n="₹8,240" l="Lifetime spend" />
-        <Stat n="240" l="Loyalty points" accent />
-      </div>
-
-      <div className="rounded-2xl bg-forest-deep text-cream p-8 flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <p className="text-xs tracking-[0.3em] uppercase text-gold">Next reward</p>
-          <p className="font-display text-3xl mt-2">60 pts to Free Shipping</p>
-          <div className="mt-4 w-64 h-2 bg-cream/15 rounded-full overflow-hidden">
-            <div className="h-full bg-gold" style={{ width: "80%" }} />
-          </div>
-        </div>
-        <button onClick={() => onGo("orders")} className="rounded-full bg-gold text-forest-deep px-6 py-3 text-sm font-semibold">View orders</button>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Stat n={String(stats.orders)} l="Total orders" />
+        <Stat n={`₹${stats.spend.toLocaleString()}`} l="Lifetime spend" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <button onClick={() => onGo("addresses")} className="text-left rounded-2xl border border-border bg-card p-6 hover:shadow-card transition">
           <MapPin className="w-6 h-6 text-gold" />
           <p className="mt-3 font-display text-xl">Delivery addresses</p>
-          <p className="text-sm text-muted-foreground">2 saved</p>
+          <p className="text-sm text-muted-foreground">{stats.addresses} saved</p>
         </button>
         <button onClick={() => onGo("settings")} className="text-left rounded-2xl border border-border bg-card p-6 hover:shadow-card transition">
           <Settings className="w-6 h-6 text-gold" />
@@ -113,28 +112,35 @@ function Overview({ onGo }: { onGo: (t: Tab) => void }) {
   );
 }
 
-function Stat({ n, l, accent }: { n: string; l: string; accent?: boolean }) {
+function Stat({ n, l }: { n: string; l: string }) {
   return (
-    <div className={`rounded-2xl p-6 border border-border ${accent ? "bg-gold text-forest-deep" : "bg-card"}`}>
-      <p className="font-display text-4xl">{n}</p>
-      <p className="text-sm opacity-80 mt-1">{l}</p>
+    <div className="rounded-2xl p-6 border border-border bg-card">
+      <p className="font-display text-4xl text-forest-deep">{n}</p>
+      <p className="text-sm text-muted-foreground mt-1">{l}</p>
     </div>
   );
 }
 
-const orders = [
-  { id: "GRM-10428", date: "Jul 2, 2026", status: "Delivered", total: 1249, items: [products[0], products[6]] },
-  { id: "GRM-10389", date: "Jun 18, 2026", status: "Out for delivery", total: 849, items: [products[3]] },
-  { id: "GRM-10321", date: "May 30, 2026", status: "Delivered", total: 2098, items: [products[1], products[5], products[8]] },
-];
-
 function Orders() {
-  const { addReview, reviews } = useSite();
-  const [openFor, setOpenFor] = useState<string | null>(null);
-  const [pSlug, setPSlug] = useState<string>("");
-  const [rating, setRating] = useState(5);
-  const [text, setText] = useState("");
-  const hasReviewed = (orderId: string, slug: string) => reviews.some((r) => r.orderId === orderId && r.productSlug === slug);
+  const { token } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("http://127.0.0.1:8000/api/profile/orders/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      setOrders(Array.isArray(data) ? data : []);
+      setLoading(false);
+    })
+    .catch(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <div className="text-center py-10 text-muted-foreground">Loading your orders...</div>;
+  if (orders.length === 0) return <div className="text-center py-10 text-muted-foreground">You haven't placed any orders yet.</div>;
 
   return (
     <div className="space-y-4">
@@ -142,83 +148,20 @@ function Orders() {
         <div key={o.id} className="rounded-2xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="font-display text-xl text-forest-deep">Order {o.id}</p>
-              <p className="text-sm text-muted-foreground">Placed on {o.date}</p>
+              <p className="font-display text-xl text-forest-deep">Order {o.order_id}</p>
+              <p className="text-sm text-muted-foreground">Placed on {new Date(o.created_at).toLocaleDateString()}</p>
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={o.status} />
-              <p className="font-display text-2xl">₹{o.total}</p>
+              <p className="font-display text-2xl">₹{o.total_amount}</p>
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            {o.items.map((p) => (
-              <div key={p.slug} className="flex items-center gap-3 bg-muted rounded-xl p-2 pr-4">
-                <img src={p.image} alt={p.name} className="w-12 h-14 object-contain" />
-                <div>
-                  <p className="text-sm font-semibold">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">₹{p.price}</p>
-                </div>
-                {o.status === "Delivered" && (
-                  hasReviewed(o.id, p.slug) ? (
-                    <span className="ml-2 text-[10px] uppercase tracking-widest text-forest-deep bg-gold/40 px-2 py-1 rounded-full">Reviewed</span>
-                  ) : (
-                    <button
-                      onClick={() => { setOpenFor(o.id); setPSlug(p.slug); setRating(5); setText(""); }}
-                      className="ml-2 inline-flex items-center gap-1 rounded-full bg-forest-deep text-cream px-3 py-1 text-[11px] font-semibold hover:bg-forest transition"
-                    >
-                      <Star className="w-3 h-3" /> Rate
-                    </button>
-                  )
-                )}
-              </div>
-            ))}
-          </div>
           <div className="mt-5 flex gap-2">
-            <button className="rounded-full bg-forest-deep text-cream px-5 py-2 text-xs font-semibold">Track order</button>
-            <button className="rounded-full border border-border px-5 py-2 text-xs font-semibold">Reorder</button>
-            <button className="rounded-full border border-border px-5 py-2 text-xs font-semibold">Invoice</button>
+            <button className="rounded-full bg-forest-deep text-cream px-5 py-2 text-xs font-semibold hover:bg-forest transition">Track order</button>
+            <button className="rounded-full border border-border px-5 py-2 text-xs font-semibold hover:bg-muted transition">Invoice</button>
           </div>
         </div>
       ))}
-
-      {openFor && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setOpenFor(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <p className="font-display text-2xl text-forest-deep">Rate this product</p>
-              <button onClick={() => setOpenFor(null)} className="text-muted-foreground hover:text-forest-deep"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="mt-5 flex gap-1">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} onClick={() => setRating(n)}>
-                  <Star className={`w-8 h-8 transition ${n <= rating ? "fill-gold text-gold" : "text-border"}`} />
-                </button>
-              ))}
-            </div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Tell others what you loved…"
-              rows={4}
-              className="mt-4 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-forest-deep text-sm"
-            />
-            <div className="mt-5 flex gap-2 justify-end">
-              <button onClick={() => setOpenFor(null)} className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold">Cancel</button>
-              <button
-                onClick={() => {
-                  if (!text.trim()) { toast.error("Add a short note"); return; }
-                  addReview({ orderId: openFor, productSlug: pSlug, user: "Aanya", rating, text: text.trim() });
-                  toast.success("Thanks — your review is live");
-                  setOpenFor(null);
-                }}
-                className="rounded-full bg-forest-deep text-cream px-5 py-2.5 text-sm font-semibold hover:bg-forest transition"
-              >
-                Submit review
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -226,8 +169,9 @@ function Orders() {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { icon: React.ComponentType<{ className?: string }>; cls: string }> = {
     Delivered: { icon: Check, cls: "bg-forest-deep text-gold" },
-    "Out for delivery": { icon: Truck, cls: "bg-gold text-forest-deep" },
+    Shipped: { icon: Truck, cls: "bg-gold text-forest-deep" },
     Processing: { icon: Clock, cls: "bg-muted text-forest-deep" },
+    Cancelled: { icon: X, cls: "bg-terracotta/10 text-terracotta" }
   };
   const it = map[status] ?? map.Processing;
   return (
@@ -238,37 +182,97 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function Addresses() {
-  const list = [
-    { name: "Home", label: "Aanya Sharma · +91 98765 43210", body: "Flat 402, Aster Residency, Indiranagar, Bengaluru 560038", primary: true },
-    { name: "Office", label: "Aanya Sharma · +91 98765 43210", body: "3rd floor, Prestige Tower, MG Road, Bengaluru 560001" },
-  ];
+  const { token } = useAuth();
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newAddress, setNewAddress] = useState({ name: "", phone: "", body: "", label: "Home" });
+
+  const fetchAddresses = () => {
+    fetch("http://127.0.0.1:8000/api/profile/addresses/", {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => { setAddresses(Array.isArray(data) ? data : []); setLoading(false); })
+    .catch(() => setLoading(false));
+  };
+
+  useEffect(() => { if (token) fetchAddresses(); }, [token]);
+
+  const saveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/profile/addresses/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(newAddress)
+      });
+      if (res.ok) {
+        toast.success("Address saved!");
+        setShowForm(false);
+        setNewAddress({ name: "", phone: "", body: "", label: "Home" });
+        fetchAddresses();
+      }
+    } catch (err) { toast.error("Failed to save address"); }
+  };
+
+  const deleteAddress = async (id: number) => {
+    if (!confirm("Remove this address?")) return;
+    await fetch(`http://127.0.0.1:8000/api/profile/addresses/${id}/`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    fetchAddresses();
+  };
+
+  if (loading) return <div className="text-center py-10 text-muted-foreground">Loading addresses...</div>;
+
   return (
-    <div className="grid md:grid-cols-2 gap-4">
-      {list.map((a) => (
-        <div key={a.name} className="rounded-2xl border border-border bg-card p-6 relative">
-          {a.primary && <span className="absolute top-4 right-4 text-[10px] tracking-widest uppercase text-gold font-semibold">Default</span>}
-          <p className="font-display text-2xl text-forest-deep">{a.name}</p>
-          <p className="mt-2 text-sm font-semibold">{a.label}</p>
-          <p className="text-sm text-muted-foreground mt-1">{a.body}</p>
-          <div className="mt-5 flex gap-2">
-            <button className="rounded-full bg-muted px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5"><Edit3 className="w-3.5 h-3.5" /> Edit</button>
-            <button className="rounded-full bg-muted px-4 py-2 text-xs font-semibold text-terracotta"><X className="w-3.5 h-3.5 inline mr-1" /> Remove</button>
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-4">
+        {addresses.map((a) => (
+          <div key={a.id} className="rounded-2xl border border-border bg-card p-6 relative">
+            <p className="font-display text-2xl text-forest-deep">{a.label}</p>
+            <p className="mt-2 text-sm font-semibold">{a.name} · {a.phone}</p>
+            <p className="text-sm text-muted-foreground mt-1">{a.body}</p>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => deleteAddress(a.id)} className="rounded-full bg-muted px-4 py-2 text-xs font-semibold text-terracotta hover:bg-terracotta/10 transition"><X className="w-3.5 h-3.5 inline mr-1" /> Remove</button>
+            </div>
           </div>
-        </div>
-      ))}
-      <button className="rounded-2xl border-2 border-dashed border-border p-6 grid place-items-center min-h-[180px] hover:border-forest-deep transition">
-        <div className="text-center">
-          <div className="w-11 h-11 mx-auto rounded-full bg-forest-deep text-gold grid place-items-center"><Plus /></div>
-          <p className="mt-3 font-semibold">Add new address</p>
-        </div>
-      </button>
+        ))}
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="rounded-2xl border-2 border-dashed border-border p-6 grid place-items-center min-h-[180px] hover:border-forest-deep transition">
+            <div className="text-center">
+              <div className="w-11 h-11 mx-auto rounded-full bg-forest-deep text-gold grid place-items-center"><Plus /></div>
+              <p className="mt-3 font-semibold">Add new address</p>
+            </div>
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={saveAddress} className="rounded-2xl border border-border bg-card p-6 md:p-8 space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-display text-2xl text-forest-deep">New Address</h3>
+            <button type="button" onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-terracotta"><X className="w-5 h-5"/></button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Full Name" required value={newAddress.name} onChange={e => setNewAddress({...newAddress, name: e.target.value})} />
+            <Field label="Phone Number" required value={newAddress.phone} onChange={e => setNewAddress({...newAddress, phone: e.target.value})} />
+            <Field label="Label (e.g., Home, Work)" value={newAddress.label} onChange={e => setNewAddress({...newAddress, label: e.target.value})} />
+          </div>
+          <Field label="Full Address (Street, City, Pincode)" required value={newAddress.body} onChange={e => setNewAddress({...newAddress, body: e.target.value})} />
+          <button type="submit" className="rounded-full bg-forest-deep text-cream px-6 py-3 text-sm font-semibold hover:bg-forest transition">Save Address</button>
+        </form>
+      )}
     </div>
   );
 }
 
 function Wishlist() {
   const { slugs, remove } = useWishlist();
-  const items = slugs.map((s) => products.find((p) => p.slug === s)).filter(Boolean) as typeof products;
+  const { allProducts } = useSite();
+  const items = slugs.map((s) => allProducts.find((p) => p.slug === s)).filter(Boolean);
 
   if (items.length === 0)
     return (
@@ -283,14 +287,14 @@ function Wishlist() {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {items.map((p) => (
-        <div key={p.slug} className="rounded-2xl border border-border bg-card p-5 flex gap-4">
-          <img src={p.image} alt={p.name} className="w-20 h-24 object-contain" />
+        <div key={p!.slug} className="rounded-2xl border border-border bg-card p-5 flex flex-col gap-4">
+          <img src={p!.image} alt={p!.name} className="w-full h-32 object-contain bg-muted/30 rounded-lg" />
           <div className="flex-1">
-            <p className="font-display text-xl text-forest-deep">{p.name}</p>
-            <p className="text-sm text-muted-foreground">₹{p.price}</p>
+            <p className="font-display text-xl text-forest-deep">{p!.name}</p>
+            <p className="text-sm text-muted-foreground">₹{p!.price}</p>
             <div className="mt-4 flex gap-2">
-              <Link to="/product/$slug" params={{ slug: p.slug }} className="rounded-full bg-forest-deep text-cream px-4 py-2 text-xs font-semibold">View</Link>
-              <button onClick={() => remove(p.slug)} className="rounded-full border border-border px-4 py-2 text-xs font-semibold">Remove</button>
+              <Link to="/product/$slug" params={{ slug: p!.slug }} className="flex-1 text-center rounded-full bg-forest-deep text-cream px-4 py-2 text-xs font-semibold">View</Link>
+              <button onClick={() => remove(p!.slug)} className="flex-1 rounded-full border border-border px-4 py-2 text-xs font-semibold">Remove</button>
             </div>
           </div>
         </div>
@@ -300,34 +304,16 @@ function Wishlist() {
 }
 
 function SettingsPanel() {
+  const { user } = useAuth();
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-6 md:p-8">
-        <h3 className="font-display text-2xl text-forest-deep">Profile</h3>
+        <h3 className="font-display text-2xl text-forest-deep">Profile Details</h3>
         <div className="mt-5 grid md:grid-cols-2 gap-4">
-          <Field label="Full name" defaultValue="Aanya Sharma" />
-          <Field label="Email" defaultValue="aanya@grams.snack" />
-          <Field label="Phone" defaultValue="+91 98765 43210" />
-          <Field label="Birthday" defaultValue="12 Aug" />
+          <Field label="Full name" defaultValue={user?.first_name || ""} disabled />
+          <Field label="Email" defaultValue={user?.email || ""} disabled />
         </div>
-        <button className="mt-6 rounded-full bg-forest-deep text-cream px-6 py-3 text-sm font-semibold">Save changes</button>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-6 md:p-8">
-        <h3 className="font-display text-2xl text-forest-deep">Notifications</h3>
-        <div className="mt-5 space-y-3">
-          {[
-            "Order updates & delivery status",
-            "New product drops",
-            "Weekly recipe newsletter",
-            "Restock alerts on wishlist",
-          ].map((n, i) => (
-            <label key={n} className="flex items-center justify-between gap-3 py-2">
-              <span className="text-sm">{n}</span>
-              <input type="checkbox" defaultChecked={i < 2} className="w-5 h-5 accent-forest-deep" />
-            </label>
-          ))}
-        </div>
+        <p className="mt-4 text-xs text-muted-foreground">Account details are currently locked for security.</p>
       </div>
 
       <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 md:p-8">
@@ -343,7 +329,7 @@ function Field({ label, ...rest }: { label: string } & React.InputHTMLAttributes
   return (
     <div>
       <label className="text-xs uppercase tracking-widest text-muted-foreground">{label}</label>
-      <input {...rest} className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-forest-deep" />
+      <input {...rest} className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-forest-deep disabled:opacity-60" />
     </div>
   );
 }

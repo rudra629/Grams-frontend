@@ -2,17 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Gift, Sparkles, ArrowRight, Package, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { useSite, type GiftCategory, type GiftArticle } from "@/lib/site-store";
+import { type GiftCategory, type GiftArticle } from "@/lib/site-store";
 import { getLenis } from "@/lib/smooth-scroll";
 
 export const Route = createFileRoute("/gifting")({
   head: () => ({
     meta: [
       { title: "Gifting Stories — Grams" },
-      { name: "description", content: "Live stories from the Grams gifting studio — corporate, birthday and festive dry-fruit gift runs, told from the inside." },
-      { property: "og:title", content: "Gifting Stories — Grams" },
-      { property: "og:description", content: "Behind every Grams gift box: the runs, the deadlines, the hand-numbered cards." },
-      { property: "og:type", content: "article" },
+      { name: "description", content: "Live stories from the Grams gifting studio." },
     ],
   }),
   component: Gifting,
@@ -26,9 +23,18 @@ const CATEGORIES: { id: GiftCategory | "All"; label: string; sub: string }[] = [
 ];
 
 function Gifting() {
-  const { giftArticles } = useSite();
+  const [giftArticles, setGiftArticles] = useState<GiftArticle[]>([]);
   const [cat, setCat] = useState<GiftCategory | "All">("All");
   const [open, setOpen] = useState<GiftArticle | null>(null);
+
+  // 🔴 Fetch LIVE articles from Django
+  useEffect(() => {
+    fetch("http://127.0.0.1:8000/api/gifting/")
+      .then(res => res.json())
+      .then(data => setGiftArticles(data))
+      .catch(console.error);
+  }, []);
+
   const filtered = cat === "All" ? giftArticles : giftArticles.filter((a) => a.category === cat);
 
   return (
@@ -67,12 +73,11 @@ function Gifting() {
             ))}
           </div>
 
-          {/* 2 x 2 article grid */}
           <div className="mt-10 grid sm:grid-cols-2 gap-5 md:gap-8">
             {filtered.length === 0 && (
               <div className="col-span-full rounded-2xl border border-dashed border-white/15 p-12 text-center text-cream/60">
                 <Gift className="w-8 h-8 mx-auto mb-3 text-gold" />
-                No {cat === "All" ? "" : cat.toLowerCase() + " "}stories published yet. Ask an admin to add some.
+                No {cat === "All" ? "" : cat.toLowerCase() + " "}stories published yet.
               </div>
             )}
             {filtered.map((a) => (
@@ -155,7 +160,6 @@ function ArticleReader({ article, onClose }: { article: GiftArticle; onClose: ()
     const lenis = getLenis();
     lenis?.stop();
 
-    // Smooth-scroll libs swallow wheel events globally — drive the panel manually.
     const onWheel = (e: WheelEvent) => {
       const el = bodyRef.current;
       if (!el) return;
@@ -172,8 +176,6 @@ function ArticleReader({ article, onClose }: { article: GiftArticle; onClose: ()
       lenis?.start();
     };
   }, [onClose]);
-
-
 
   return createPortal(
     <div className="fixed inset-0 z-[200] grid place-items-center p-3 md:p-8" role="dialog" aria-modal="true">
@@ -234,7 +236,6 @@ function ArticleReader({ article, onClose }: { article: GiftArticle; onClose: ()
           </Link>
         </div>
       </div>
-
     </div>,
     document.body
   );
